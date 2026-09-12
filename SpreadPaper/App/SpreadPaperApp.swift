@@ -10,6 +10,11 @@ struct SpreadPaperApp: App {
     @State private var updateChecker = UpdateChecker.shared
     @State private var hasCheckedForUpdates = false
 
+    /// Forces the dark appearance on every window, Settings included.
+    init() {
+        NSApplication.shared.appearance = NSAppearance(named: .darkAqua)
+    }
+
     var body: some Scene {
         WindowGroup {
             ZStack {
@@ -21,7 +26,6 @@ struct SpreadPaperApp: App {
             }
             .ignoresSafeArea()
             .frame(minWidth: 900, minHeight: 600)
-            .preferredColorScheme(.dark)
             .background(Color.cdBgPrimary)
             .task {
                 await manager.listenForScreenChanges()
@@ -30,12 +34,6 @@ struct SpreadPaperApp: App {
                 await checkForUpdates()
             }
             .onAppear {
-                // Force dark appearance on window
-                if let window = NSApplication.shared.windows.first {
-                    window.appearance = NSAppearance(named: .darkAqua)
-                    window.backgroundColor = NSColor(Color.cdBgPrimary)
-                }
-
                 // Show wizard if first launch
                 if !settings.hasCompletedWizard {
                     navigation.route = .wizard

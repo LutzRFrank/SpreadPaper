@@ -18,8 +18,8 @@ struct GalleryView: View {
     @State private var presetPendingDelete: SavedPreset? = nil
     @State private var presetPendingRename: SavedPreset? = nil
     @State private var renameDraft: String = ""
-    @State private var showSettings: Bool = false
     @FocusState private var searchFocused: Bool
+    @Environment(\.openSettings) private var openSettings
 
     // MARK: - Derived
 
@@ -42,56 +42,50 @@ struct GalleryView: View {
     }
 
     var body: some View {
-        Group {
-            if showSettings {
-                SettingsShell(manager: manager, onClose: { showSettings = false })
-            } else {
-                HStack(spacing: 0) {
-                    sidebar
-                        .frame(width: 220)
-                        .background(Color.cdBgSecondary)
-                        .overlay(alignment: .trailing) {
-                            Rectangle().fill(Color.cdBorder).frame(width: 1)
-                        }
-                    VStack(spacing: 0) {
-                        toolbar
-                        Rectangle().fill(Color.cdBorder).frame(height: 1)
-                        if let error = manager.lastError {
-                            errorBanner(error)
-                        }
-                        mainContent
-                    }
-                    .background(Color.cdBgPrimary)
+        HStack(spacing: 0) {
+            sidebar
+                .frame(width: 220)
+                .background(Color.cdBgSecondary)
+                .overlay(alignment: .trailing) {
+                    Rectangle().fill(Color.cdBorder).frame(width: 1)
                 }
+            VStack(spacing: 0) {
+                toolbar
+                Rectangle().fill(Color.cdBorder).frame(height: 1)
+                if let error = manager.lastError {
+                    errorBanner(error)
+                }
+                mainContent
             }
+            .background(Color.cdBgPrimary)
         }
-            .task { reloadThumbnails() }
-            .onChange(of: colorScheme) { _, _ in reloadThumbnails() }
-            .onChange(of: manager.presets.map(\.id)) { _, _ in reloadThumbnails() }
-            .confirmationDialog(
-                "Delete '\(presetPendingDelete?.name ?? "")'?",
-                isPresented: Binding(
-                    get: { presetPendingDelete != nil },
-                    set: { if !$0 { presetPendingDelete = nil } }
-                ),
-                presenting: presetPendingDelete
-            ) { preset in
-                Button("Delete", role: .destructive) { manager.deletePreset(preset) }
-                Button("Cancel", role: .cancel) { }
-            } message: { _ in
-                Text("This preset will be removed. The source image isn't affected.")
-            }
-            .alert(
-                "Rename preset",
-                isPresented: Binding(
-                    get: { presetPendingRename != nil },
-                    set: { if !$0 { presetPendingRename = nil } }
-                )
-            ) {
-                TextField("Name", text: $renameDraft)
-                Button("Rename") { commitRename() }
-                Button("Cancel", role: .cancel) { presetPendingRename = nil }
-            }
+        .task { reloadThumbnails() }
+        .onChange(of: colorScheme) { _, _ in reloadThumbnails() }
+        .onChange(of: manager.presets.map(\.id)) { _, _ in reloadThumbnails() }
+        .confirmationDialog(
+            "Delete '\(presetPendingDelete?.name ?? "")'?",
+            isPresented: Binding(
+                get: { presetPendingDelete != nil },
+                set: { if !$0 { presetPendingDelete = nil } }
+            ),
+            presenting: presetPendingDelete
+        ) { preset in
+            Button("Delete", role: .destructive) { manager.deletePreset(preset) }
+            Button("Cancel", role: .cancel) { }
+        } message: { _ in
+            Text("This preset will be removed. The source image isn't affected.")
+        }
+        .alert(
+            "Rename preset",
+            isPresented: Binding(
+                get: { presetPendingRename != nil },
+                set: { if !$0 { presetPendingRename = nil } }
+            )
+        ) {
+            TextField("Name", text: $renameDraft)
+            Button("Rename") { commitRename() }
+            Button("Cancel", role: .cancel) { presetPendingRename = nil }
+        }
     }
 
     // MARK: - Error banner
@@ -259,7 +253,7 @@ struct GalleryView: View {
 
             Spacer(minLength: 0)
 
-            Button(action: { showSettings = true }) {
+            Button(action: { openSettings() }) {
                 HStack(spacing: 8) {
                     Ph.gear.regular
                         .color(Color.cdTextSecondary)
@@ -708,17 +702,6 @@ private struct FilterRow: View {
         case .dynamic:    Ph.sun.regular.color(color)
         case .appearance: Ph.circleHalf.regular.color(color)
         }
-    }
-}
-
-// MARK: - Settings shell (in-window)
-
-struct SettingsShell: View {
-    let manager: WallpaperManager
-    let onClose: () -> Void
-
-    var body: some View {
-        SettingsInWindowView(manager: manager, onClose: onClose)
     }
 }
 
