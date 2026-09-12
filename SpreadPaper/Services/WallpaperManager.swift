@@ -1,4 +1,8 @@
 import AppKit
+import os
+
+/// Technical failure details go here; `lastError` carries only plain, actionable copy for the UI.
+private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "SpreadPaper", category: "wallpaper")
 
 @Observable
 class WallpaperManager {
@@ -8,10 +12,12 @@ class WallpaperManager {
     var lastError: String?
     var activePresetId: UUID?
 
-    private let presetsFile = "spreadpaper_presets.json"
+    private let store: PresetStore
     private let activePresetKey = "activePresetId"
 
-    init() {
+    /// - Parameter store: Presets persistence. Defaults to the app support directory.
+    init(store: PresetStore? = nil) {
+        self.store = store ?? PresetStore(directory: Self.defaultDataDirectory())
         refreshScreens()
         loadPresets()
         if let raw = UserDefaults.standard.string(forKey: activePresetKey) {
@@ -35,14 +41,16 @@ class WallpaperManager {
     }
 
     // --- FILE SYSTEM ---
+    private static func defaultDataDirectory() -> URL {
+        URL.applicationSupportDirectory.appending(path: "SpreadPaper")
+    }
+
     private func getAppDataDirectory() -> URL {
-        let paths = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
-        let appSupport = paths[0]
-        let spreadPaperDir = appSupport.appendingPathComponent("SpreadPaper")
-        if !FileManager.default.fileExists(atPath: spreadPaperDir.path) {
-            try? FileManager.default.createDirectory(at: spreadPaperDir, withIntermediateDirectories: true)
+        let dir = store.directory
+        if !FileManager.default.fileExists(atPath: dir.path) {
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         }
-        return spreadPaperDir
+        return dir
     }
 
     private func getWallpapersDirectory() -> URL {
@@ -111,7 +119,8 @@ class WallpaperManager {
             presets.append(newPreset)
             persistPresets()
         } catch {
-            print("Error saving preset image: \(error)")
+            logger.error("Saving preset image failed: \(error, privacy: .public)")
+            lastError = "The preset couldn't be saved."
         }
     }
 
@@ -150,7 +159,8 @@ class WallpaperManager {
                 if index < flipped.count { variant.isFlipped = flipped[index] }
                 variants.append(variant)
             } catch {
-                print("Error copying image for dynamic preset: \(error)")
+                logger.error("Copying image \(index) for dynamic preset failed: \(error, privacy: .public)")
+                lastError = "One of the preset images couldn't be saved."
             }
         }
 
@@ -193,28 +203,32 @@ class WallpaperManager {
     func persistPresetsPublic() { persistPresets() }
 
     private func persistPresets() {
+        _ = getAppDataDirectory()
         do {
-            let data = try JSONEncoder().encode(presets)
-            let url = getAppDataDirectory().appendingPathComponent(presetsFile)
-            try data.write(to: url)
+            try store.save(presets)
         } catch {
-            print("Failed to save presets json: \(error)")
+            logger.error("Writing presets file failed: \(error, privacy: .public)")
+            lastError = "Your presets couldn't be saved."
         }
     }
 
     private func loadPresets() {
-        let url = getAppDataDirectory().appendingPathComponent(presetsFile)
         do {
-            let data = try Data(contentsOf: url)
-            let decoded = try JSONDecoder().decode([SavedPreset].self, from: data)
-            presets = decoded
-
+            guard let loaded = try store.load() else { return }
+            presets = loaded.presets
             // Persist any flags inferred during migration so the heuristic only runs once.
-            let needsRewrite = !data.contains("\"isAppearanceBased\"".data(using: .utf8) ?? Data())
-            if needsRewrite && !decoded.isEmpty {
+            if loaded.needsMigrationRewrite {
                 persistPresets()
             }
-        } catch { }
+        } catch PresetStore.LoadError.corrupted(let backup, let underlying) {
+            logger.error("Presets file corrupt, moved to \(backup.lastPathComponent, privacy: .public): \(underlying, privacy: .public)")
+            presets = []
+            lastError = "Your presets couldn't be loaded. A backup was saved as \(backup.lastPathComponent)."
+        } catch {
+            logger.error("Reading presets file failed: \(error, privacy: .public)")
+            presets = []
+            lastError = "Your presets couldn't be loaded."
+        }
     }
 
     // --- SCREEN LOGIC ---
@@ -253,7 +267,8 @@ class WallpaperManager {
                 )
                 try saveAndSetWallpaper(image, screenName: display.name, screen: display.screen)
             } catch {
-                lastError = "Failed to set wallpaper for \(display.name): \(error.localizedDescription)"
+                logger.error("Setting wallpaper for \(display.name, privacy: .public) failed: \(error, privacy: .public)")
+                lastError = "The wallpaper couldn't be set on \(display.name)."
             }
         }
     }
@@ -318,7 +333,8 @@ class WallpaperManager {
 
                 try NSWorkspace.shared.setDesktopImageURL(heicURL, for: display.screen, options: [:])
             } catch {
-                lastError = "Failed to set dynamic wallpaper for \(display.name): \(error.localizedDescription)"
+                logger.error("Setting dynamic wallpaper for \(display.name, privacy: .public) failed: \(error, privacy: .public)")
+                lastError = "The dynamic wallpaper couldn't be set on \(display.name)."
             }
         }
     }
@@ -368,7 +384,8 @@ class WallpaperManager {
 
                 try NSWorkspace.shared.setDesktopImageURL(heicURL, for: display.screen, options: [:])
             } catch {
-                lastError = "Failed to set wallpaper for \(display.name): \(error.localizedDescription)"
+                logger.error("Setting wallpaper for \(display.name, privacy: .public) failed: \(error, privacy: .public)")
+                lastError = "The wallpaper couldn't be set on \(display.name)."
             }
         }
     }
