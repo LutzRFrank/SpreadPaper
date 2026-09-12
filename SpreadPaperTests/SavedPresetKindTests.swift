@@ -5,6 +5,7 @@ import Testing
 /// Issue #78: a preset reports its kind as `WallpaperType`, never as a string.
 @MainActor
 struct SavedPresetKindTests {
+    /// Minimal preset with only the kind flags varying.
     private func preset(isDynamic: Bool = false, isAppearanceBased: Bool = false) -> SavedPreset {
         SavedPreset(
             name: "p",
@@ -27,7 +28,7 @@ struct SavedPresetKindTests {
         #expect(preset(isDynamic: true, isAppearanceBased: true).kind == .appearance)
     }
 
-    /// Files written before `isAppearanceBased` existed carry every other key.
+    /// Variant JSON for a schedule without the `isAppearanceBased` key; every other key is present.
     private func legacyVariantJSON(_ name: String, hour: Int) -> String {
         """
         {
@@ -39,7 +40,7 @@ struct SavedPresetKindTests {
         """
     }
 
-    /// Builds a dynamic preset file from before `isAppearanceBased` existed.
+    /// Dynamic preset JSON for a schedule without the `isAppearanceBased` key.
     private func legacyPresetJSON(variants: [String]) -> Data {
         let json = """
         {

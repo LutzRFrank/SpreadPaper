@@ -7,6 +7,7 @@ struct PresetStore {
     static let filename = "spreadpaper_presets.json"
     static let backupFilename = "spreadpaper_presets.json.bak"
 
+    /// Load failure carrying the backup location for the user-facing message.
     enum LoadError: LocalizedError {
         case corrupted(backup: URL, underlying: any Error)
 
@@ -21,7 +22,7 @@ struct PresetStore {
     /// Result of a successful load.
     struct Loaded {
         let presets: [SavedPreset]
-        /// True when the file predates the `isAppearanceBased` key and should be rewritten once.
+        /// True when the file lacks the `isAppearanceBased` key.
         let needsMigrationRewrite: Bool
     }
 
