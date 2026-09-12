@@ -49,8 +49,9 @@ nonisolated struct DynamicMetadata: Codable {
 
 // MARK: - Errors
 
-enum DynamicWallpaperError: Error, LocalizedError {
+enum DynamicWallpaperError: Error, LocalizedError, Equatable {
     case noImages
+    case countMismatch
     case destinationCreationFailed
     case metadataCreationFailed
     case finalizationFailed
@@ -59,6 +60,7 @@ enum DynamicWallpaperError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .noImages:                   return "No images provided."
+        case .countMismatch:              return "Hours and minutes must have one entry per image."
         case .destinationCreationFailed:  return "Failed to create CGImageDestination."
         case .metadataCreationFailed:     return "Failed to create image metadata."
         case .finalizationFailed:         return "Failed to finalize the HEIC file."
@@ -81,7 +83,7 @@ enum DynamicWallpaperGenerator {
     ) throws {
         guard !images.isEmpty else { throw DynamicWallpaperError.noImages }
         guard hours.count == images.count, minutes.count == images.count else {
-            throw DynamicWallpaperError.noImages
+            throw DynamicWallpaperError.countMismatch
         }
 
         let timeItems: [TimeBasedItem] = images.indices.map { idx in
@@ -90,12 +92,16 @@ enum DynamicWallpaperGenerator {
         }
 
         let noonFraction = 12.0 / 24.0
-        let lightIndex = timeItems
-            .min(by: { abs($0.time - noonFraction) < abs($1.time - noonFraction) })!
-            .imageIndex
-        let darkIndex = timeItems
-            .min(by: { min($0.time, 1.0 - $0.time) < min($1.time, 1.0 - $1.time) })!
-            .imageIndex
+        guard
+            let lightIndex = timeItems
+                .min(by: { abs($0.time - noonFraction) < abs($1.time - noonFraction) })?
+                .imageIndex,
+            let darkIndex = timeItems
+                .min(by: { min($0.time, 1.0 - $0.time) < min($1.time, 1.0 - $1.time) })?
+                .imageIndex
+        else {
+            throw DynamicWallpaperError.noImages
+        }
 
         let metadata = DynamicMetadata(
             solarItems: nil,
@@ -119,6 +125,12 @@ enum DynamicWallpaperGenerator {
 
     // MARK: - Shared HEIC writing
 
+    /// Lossy compression quality applied to every frame in a dynamic HEIC.
+    nonisolated private static let compressionQuality: CGFloat = 0.9
+
+    /// Encodes `images` into a HEIC at `outputURL`, tagging the first frame with
+    /// `metadata` as a base64 binary plist under the Apple desktop XMP key
+    /// `key`. Writes a sibling temp file, then moves it into place.
     nonisolated private static func writeHEIC(
         images: [CGImage],
         metadata: some Codable,
@@ -152,14 +164,21 @@ enum DynamicWallpaperGenerator {
             throw DynamicWallpaperError.metadataCreationFailed
         }
 
-        let data = NSMutableData()
-        guard let destination = CGImageDestinationCreateWithData(
-            data as CFMutableData, UTType.heic.identifier as CFString, images.count, nil
+        let directory = outputURL.deletingLastPathComponent()
+        guard FileManager.default.isWritableFile(atPath: directory.path) else {
+            throw DynamicWallpaperError.fileWriteFailed
+        }
+        removeStaleTempFiles(for: outputURL)
+
+        // Sibling temp keeps a half-written file off the live wallpaper path.
+        let tempURL = directory.appending(path: tempName(for: outputURL, id: UUID().uuidString))
+        guard let destination = CGImageDestinationCreateWithURL(
+            tempURL as CFURL, UTType.heic.identifier as CFString, images.count, nil
         ) else {
             throw DynamicWallpaperError.destinationCreationFailed
         }
 
-        let options: [CFString: Any] = [kCGImageDestinationLossyCompressionQuality: 0.9]
+        let options: [CFString: Any] = [kCGImageDestinationLossyCompressionQuality: compressionQuality]
 
         for (index, image) in images.enumerated() {
             if index == 0 {
@@ -170,11 +189,36 @@ enum DynamicWallpaperGenerator {
         }
 
         guard CGImageDestinationFinalize(destination) else {
+            try? FileManager.default.removeItem(at: tempURL)
             throw DynamicWallpaperError.finalizationFailed
         }
 
-        guard data.write(to: outputURL, atomically: true) else {
+        do {
+            _ = try FileManager.default.replaceItemAt(outputURL, withItemAt: tempURL)
+        } catch {
+            try? FileManager.default.removeItem(at: tempURL)
             throw DynamicWallpaperError.fileWriteFailed
+        }
+    }
+
+    /// Hidden sibling name for an in-progress write of `outputURL`; the `.tmp`
+    /// suffix keeps it clear of the `.heic` legacy cleanup.
+    nonisolated private static func tempName(for outputURL: URL, id: String) -> String {
+        "\(tempPrefix(for: outputURL))\(id).tmp"
+    }
+
+    /// Leading part shared by every temp sibling of `outputURL`.
+    nonisolated private static func tempPrefix(for outputURL: URL) -> String {
+        ".\(outputURL.lastPathComponent)."
+    }
+
+    /// Deletes temp siblings of `outputURL` left behind by a killed encode.
+    nonisolated private static func removeStaleTempFiles(for outputURL: URL) {
+        let directory = outputURL.deletingLastPathComponent()
+        let prefix = tempPrefix(for: outputURL)
+        guard let names = try? FileManager.default.contentsOfDirectory(atPath: directory.path) else { return }
+        for name in names where name.hasPrefix(prefix) && name.hasSuffix(".tmp") {
+            try? FileManager.default.removeItem(at: directory.appending(path: name))
         }
     }
 }
