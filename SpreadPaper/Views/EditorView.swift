@@ -372,25 +372,13 @@ struct EditorView: View {
                     get: { wallpaperType },
                     set: { switchType(to: $0) }
                 ),
-                options: [
-                    (.standard, "Static"),
-                    (.appearance, "Light & Dark"),
-                    (.dynamic, "Dynamic (time of day)")
-                ]
+                options: WallpaperType.allCases.map { ($0, $0.title) }
             )
         } hint: {
-            Text(typeHint)
+            Text(wallpaperType.subtitle)
                 .font(.system(size: 12))
                 .foregroundStyle(Color.cdTextTertiary)
                 .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    private var typeHint: String {
-        switch wallpaperType {
-        case .standard:   return "One image, stretched seamlessly across every display."
-        case .appearance: return "A light image by day, a darker one by night — switched by macOS appearance."
-        case .dynamic:    return "A schedule of images that shifts through the day, in sync across all screens."
         }
     }
 
@@ -868,7 +856,7 @@ struct EditorView: View {
 
         if preset.isDynamic && !preset.timeVariants.isEmpty {
             let sortedVariants: [TimeVariant]
-            if preset.wallpaperType == "Light/Dark" {
+            if preset.kind == .appearance {
                 sortedVariants = preset.timeVariants.sorted { $0.hour > $1.hour }
             } else {
                 sortedVariants = preset.timeVariants

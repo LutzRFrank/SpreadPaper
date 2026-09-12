@@ -224,7 +224,7 @@ struct GalleryCardView: View {
         HStack(spacing: 4) {
             typeIcon
                 .frame(width: 10, height: 10)
-            Text(typeBadgeLabel)
+            Text(preset.kind.title)
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(Color.cdTextTertiary)
         }
@@ -240,23 +240,9 @@ struct GalleryCardView: View {
         )
     }
 
-    @ViewBuilder
     private var typeIcon: some View {
-        switch preset.wallpaperType {
-        case "Dynamic":
-            Ph.sun.regular.color(Color(hex: 0xf5a524))
-        case "Light/Dark":
-            Ph.circleHalf.regular.color(Color(hex: 0x7c7cff))
-        default:
-            Ph.image.regular.color(Color.cdTextTertiary)
-        }
-    }
-
-    private var typeBadgeLabel: String {
-        switch preset.wallpaperType {
-        case "Dynamic":    return "Dynamic"
-        case "Light/Dark": return "Light & Dark"
-        default:           return "Static"
-        }
+        Image(systemName: preset.kind.systemImage)
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundStyle(preset.kind.tint)
     }
 }
