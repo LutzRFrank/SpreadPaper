@@ -1,20 +1,28 @@
 // SpreadPaper/Views/SaveDialog.swift
 
 import SwiftUI
-import AppKit
 
+/// Overlay that names a preset before it is saved. Focuses the name field
+/// on appear so the initial text is selected and typing replaces it.
 struct SaveDialog: View {
-    let initialName: String
     let applyOnSave: Bool
     let onCancel: () -> Void
     let onSave: (String) -> Void
 
-    @State private var name: String = ""
+    @State private var name: String
     @State private var hasAppeared = false
     @FocusState private var nameFocused: Bool
 
     private var trimmed: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var canSave: Bool { !trimmed.isEmpty }
+
+    /// Seeds the name state from `initialName` before the first render.
+    init(initialName: String, applyOnSave: Bool, onCancel: @escaping () -> Void, onSave: @escaping (String) -> Void) {
+        self.applyOnSave = applyOnSave
+        self.onCancel = onCancel
+        self.onSave = onSave
+        _name = State(initialValue: initialName)
+    }
 
     var body: some View {
         ZStack {
@@ -26,15 +34,12 @@ struct SaveDialog: View {
                 .offset(y: hasAppeared ? 0 : 6)
         }
         .onAppear {
-            name = initialName
             withAnimation(.timingCurve(0.2, 0.9, 0.25, 1, duration: 0.24)) {
                 hasAppeared = true
             }
-            DispatchQueue.main.async {
-                nameFocused = true
-                selectAllInFirstResponder()
-            }
         }
+        // Runs after the field is attached.
+        .task { nameFocused = true }
     }
 
     private var backdrop: some View {
@@ -107,14 +112,9 @@ struct SaveDialog: View {
         .shadow(color: .black.opacity(0.6), radius: 80, y: 30)
     }
 
+    /// Saves the trimmed name; ignored while the name is blank.
     private func commit() {
         guard canSave else { return }
         onSave(trimmed)
-    }
-
-    private func selectAllInFirstResponder() {
-        if let textView = NSApp.keyWindow?.firstResponder as? NSTextView {
-            textView.selectAll(nil)
-        }
     }
 }
