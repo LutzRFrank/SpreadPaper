@@ -546,11 +546,16 @@ struct GalleryView: View {
             )
         }
 
+        // Match the screen's backing scale so Retina cards stay sharp.
+        let scale = NSScreen.main?.backingScaleFactor ?? 2
+        let maxPixelSize = Int((CGFloat(thumbnailMaxPointSize) * scale).rounded())
+
         Task.detached(priority: .userInitiated) {
-            let results = renderThumbnails(jobs: jobs)
+            let results = renderThumbnails(jobs: jobs, maxPixelSize: maxPixelSize)
             await MainActor.run {
                 for r in results {
-                    thumbnailCache[r.presetId] = r.image
+                    let size = NSSize(width: CGFloat(r.image.width) / scale, height: CGFloat(r.image.height) / scale)
+                    thumbnailCache[r.presetId] = NSImage(cgImage: r.image, size: size)
                 }
                 isLoadingThumbnails = false
             }
@@ -707,40 +712,32 @@ private struct FilterRow: View {
 
 // MARK: - Background thumbnail rendering
 
+/// Everything the detached renderer needs for one preset, snapshotted on the main actor.
 private struct ThumbnailJob: Sendable {
     let presetId: UUID
     let imageURL: URL
     let shouldFlip: Bool
 }
 
-private struct ThumbnailResult: @unchecked Sendable {
+/// One finished thumbnail, keyed by the preset it belongs to.
+private struct ThumbnailResult: Sendable {
     let presetId: UUID
-    let image: NSImage
+    let image: CGImage
 }
 
-nonisolated private func renderThumbnails(jobs: [ThumbnailJob]) -> [ThumbnailResult] {
+/// Longest side of a gallery thumbnail, in points.
+nonisolated private let thumbnailMaxPointSize = 480
+
+/// Downsamples every job's image off the main actor. Jobs whose file
+/// cannot be read are skipped, so the caller keeps its placeholder.
+nonisolated private func renderThumbnails(jobs: [ThumbnailJob], maxPixelSize: Int) -> [ThumbnailResult] {
     var out: [ThumbnailResult] = []
     out.reserveCapacity(jobs.count)
     for job in jobs {
-        guard let image = NSImage(contentsOf: job.imageURL) else { continue }
-        let maxDim: CGFloat = 480
-        let pixelSize = image.pixelSize
-        let ratio = min(maxDim / pixelSize.width, maxDim / pixelSize.height, 1.0)
-        let newSize = NSSize(
-            width: pixelSize.width * ratio,
-            height: pixelSize.height * ratio
-        )
-        let thumb = NSImage(size: newSize)
-        thumb.lockFocus()
-        if job.shouldFlip {
-            let t = NSAffineTransform()
-            t.translateX(by: newSize.width, yBy: 0)
-            t.scaleX(by: -1, yBy: 1)
-            t.concat()
-        }
-        image.draw(in: NSRect(origin: .zero, size: newSize))
-        thumb.unlockFocus()
-        out.append(ThumbnailResult(presetId: job.presetId, image: thumb))
+        guard let image = ThumbnailRenderer.thumbnail(
+            for: job.imageURL, maxPixelSize: maxPixelSize, flipped: job.shouldFlip
+        ) else { continue }
+        out.append(ThumbnailResult(presetId: job.presetId, image: image))
     }
     return out
 }
