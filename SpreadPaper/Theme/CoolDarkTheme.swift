@@ -33,26 +33,76 @@ extension Color {
 
 // MARK: - Button Styles
 
+/// Shared chrome for primary, success and secondary buttons. `size` picks the
+/// regular or compact metrics; a disabled button fades and loses its glow.
 struct CoolDarkButtonStyle: ButtonStyle {
+    /// Button metrics. Compact is the 30 pt height used in dialogs and on
+    /// gallery cards.
+    enum Size {
+        case regular
+        case compact
+
+        var fontSize: CGFloat {
+            switch self {
+            case .regular: 14
+            case .compact: 13
+            }
+        }
+
+        var horizontalPadding: CGFloat {
+            switch self {
+            case .regular: 16
+            case .compact: 12
+            }
+        }
+
+        var verticalPadding: CGFloat {
+            switch self {
+            case .regular: 10
+            case .compact: 7
+            }
+        }
+
+        /// Pinned height so compact buttons line up with 30 pt neighbours.
+        var minHeight: CGFloat? {
+            switch self {
+            case .regular: nil
+            case .compact: 30
+            }
+        }
+    }
+
     var isPrimary: Bool = false
     var isSuccess: Bool = false
+    var size: Size = .regular
+
+    @Environment(\.isEnabled) var isEnabled
+
+    /// True for the accent and success variants, which drop the border.
+    private var isFilled: Bool { isPrimary || isSuccess }
+
+    /// Background colour for the current variant.
+    private var fill: Color {
+        isSuccess ? Color.cdSuccess : isPrimary ? Color.cdAccent : Color.cdBgElevated
+    }
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 14, weight: .semibold))
-            .foregroundStyle(isPrimary || isSuccess ? .white : Color.cdTextSecondary)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
+            .font(.system(size: size.fontSize, weight: .semibold))
+            .foregroundStyle(isFilled ? .white : Color.cdTextSecondary)
+            .padding(.horizontal, size.horizontalPadding)
+            .padding(.vertical, size.verticalPadding)
+            .frame(minHeight: size.minHeight)
             .background(
                 RoundedRectangle(cornerRadius: 7)
-                    .fill(isSuccess ? Color.cdSuccess : isPrimary ? Color.cdAccent : Color.cdBgElevated)
+                    .fill(fill)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 7)
-                    .stroke(isPrimary || isSuccess ? Color.clear : Color.cdBorder, lineWidth: 1)
+                    .stroke(isFilled ? Color.clear : Color.cdBorder, lineWidth: 1)
             )
-            .shadow(color: isSuccess ? Color.cdSuccess.opacity(0.3) : isPrimary ? Color.cdAccent.opacity(0.3) : .clear, radius: 8)
-            .opacity(configuration.isPressed ? 0.8 : 1.0)
+            .shadow(color: isFilled && isEnabled ? fill.opacity(0.3) : .clear, radius: 8)
+            .opacity(!isEnabled ? 0.5 : configuration.isPressed ? 0.8 : 1.0)
     }
 }
 
