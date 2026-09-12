@@ -72,10 +72,14 @@ struct EditorView: View {
 
     private var canSave: Bool {
         switch wallpaperType {
-        case .standard: return !loadedImages.isEmpty
+        case .standard, .dynamic: return !loadedImages.isEmpty
         case .appearance: return loadedImages.count == 2
-        case .dynamic: return loadedImages.count >= 2
         }
+    }
+
+    /// A dynamic schedule with a single image is saved and applied as a static wallpaper.
+    private var effectiveType: WallpaperType {
+        wallpaperType == .dynamic && loadedImages.count < 2 ? .standard : wallpaperType
     }
 
     var body: some View {
@@ -187,11 +191,11 @@ struct EditorView: View {
             Button(action: previewWallpaper) {
                 HStack(spacing: 5) {
                     Ph.eye.regular
-                        .color(Color.cdTextSecondary)
+                        .color(Color.cdTextPrimary)
                         .frame(width: 13, height: 13)
                     Text("Preview")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(Color.cdTextSecondary)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.cdTextPrimary)
                 }
                 .padding(.horizontal, 12)
                 .frame(height: 26)
@@ -345,8 +349,10 @@ struct EditorView: View {
                 zoomSection
                 InspectorDivider()
                 orientationSection
-                InspectorDivider()
-                displaysSection
+                if manager.connectedScreens.count > 1 {
+                    InspectorDivider()
+                    displaysSection
+                }
                 Spacer(minLength: 0)
             }
             .padding(28)
@@ -537,43 +543,110 @@ struct EditorView: View {
 
     // MARK: - Displays
 
-    /// Bezel gap lives in AppSettings (hardware property) but is tuned here, against the live canvas.
+    /// Bezel widths live in AppSettings (hardware property) but are tuned here, against the
+    /// live canvas. One synced pair of sliders by default; a toggle reveals per-display
+    /// pairs for arrays with mixed frames. Only shown with two or more displays.
     private var displaysSection: some View {
-        InspectorField(label: "Display gap") {
-            if manager.connectedScreens.count > 1 {
-                HStack(spacing: 12) {
-                    NativeRange(
-                        value: Binding(
-                            get: { CGFloat(settings.bezelGap) },
-                            set: { settings.bezelGap = Double($0.rounded()) }
-                        ),
-                        range: 0...300
-                    )
-                    TextField("0", value: Binding(
-                        get: { settings.bezelGap },
-                        set: { settings.bezelGap = max(0, min($0.rounded(), 1000)) }
-                    ), format: .number.precision(.fractionLength(0)))
-                        .textFieldStyle(.plain)
-                        .multilineTextAlignment(.trailing)
-                        .font(.system(size: 12.5, weight: .medium))
-                        .monospacedDigit()
-                        .foregroundStyle(Color.cdTextPrimary)
-                        .frame(width: 40)
-                    Text("pt")
-                        .font(.system(size: 12))
-                        .foregroundStyle(Color.cdTextTertiary)
+        InspectorField(label: "Display bezels") {
+            VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 6) {
+                    bezelSlider(label: "Horizontal", value: allDisplaysBezelBinding(\.horizontal), disabled: settings.bezelPerDisplay)
+                    bezelSlider(label: "Vertical", value: allDisplaysBezelBinding(\.vertical), disabled: settings.bezelPerDisplay)
                 }
-                .onChange(of: settings.bezelGap) { _, _ in manager.refreshScreens() }
-            } else {
-                Text("Connect a second display to set the bezel gap.")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Color.cdTextTertiary)
+
+                NativeCheckbox(
+                    label: "Set per display",
+                    isOn: Binding(
+                        get: { settings.bezelPerDisplay },
+                        set: { perDisplay in
+                            if !perDisplay { syncBezelsToFirstDisplay() }
+                            settings.bezelPerDisplay = perDisplay
+                        }
+                    )
+                )
+
+                if settings.bezelPerDisplay {
+                    ForEach(manager.connectedScreens) { display in
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(display.name)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(Color.cdTextPrimary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            bezelSlider(label: "Horizontal", value: displayBezelBinding(display.displayID, \.horizontal))
+                            bezelSlider(label: "Vertical", value: displayBezelBinding(display.displayID, \.vertical))
+                        }
+                    }
+                }
             }
+            .onChange(of: settings.bezelWidths) { _, _ in manager.refreshScreens() }
         } hint: {
-            Text("Width of the frames between your monitors, so the image lines up across them.")
+            Text("Frame width around each panel: horizontal for the left and right edges, vertical for top and bottom.")
                 .font(.system(size: 12))
                 .foregroundStyle(Color.cdTextTertiary)
         }
+    }
+
+    /// Reads the first display's edge and writes the value to every connected display.
+    private func allDisplaysBezelBinding(_ edge: WritableKeyPath<Bezel, CGFloat>) -> Binding<CGFloat> {
+        Binding(
+            get: {
+                guard let first = manager.connectedScreens.first else { return 0 }
+                return settings.bezel(for: first.displayID)[keyPath: edge]
+            },
+            set: { newValue in
+                for display in manager.connectedScreens {
+                    var bezel = settings.bezel(for: display.displayID)
+                    bezel[keyPath: edge] = newValue.rounded()
+                    settings.setBezel(bezel, for: display.displayID)
+                }
+            }
+        )
+    }
+
+    /// Reads and writes one edge of one display's bezel.
+    private func displayBezelBinding(_ displayID: CGDirectDisplayID, _ edge: WritableKeyPath<Bezel, CGFloat>) -> Binding<CGFloat> {
+        Binding(
+            get: { settings.bezel(for: displayID)[keyPath: edge] },
+            set: { newValue in
+                var bezel = settings.bezel(for: displayID)
+                bezel[keyPath: edge] = newValue.rounded()
+                settings.setBezel(bezel, for: displayID)
+            }
+        )
+    }
+
+    /// Copies the first display's bezel to all others when leaving per-display mode.
+    private func syncBezelsToFirstDisplay() {
+        guard let first = manager.connectedScreens.first else { return }
+        let bezel = settings.bezel(for: first.displayID)
+        for display in manager.connectedScreens.dropFirst() {
+            settings.setBezel(bezel, for: display.displayID)
+        }
+    }
+
+    /// One labelled slider plus numeric field for a single bezel edge.
+    private func bezelSlider(label: String, value: Binding<CGFloat>, disabled: Bool = false) -> some View {
+        HStack(spacing: 10) {
+            Text(label)
+                .font(.system(size: 11))
+                .foregroundStyle(Color.cdTextTertiary)
+                .frame(width: 62, alignment: .leading)
+            NativeRange(value: value, range: 0...150)
+            TextField("0", value: Binding(get: { Double(value.wrappedValue) }, set: { value.wrappedValue = CGFloat($0) }),
+                      format: .number.precision(.fractionLength(0)))
+                .textFieldStyle(.plain)
+                .multilineTextAlignment(.trailing)
+                .font(.system(size: 12.5, weight: .medium))
+                .monospacedDigit()
+                .foregroundStyle(Color.cdTextPrimary)
+                .frame(width: 34)
+            Text("pt")
+                .font(.system(size: 12))
+                .foregroundStyle(Color.cdTextTertiary)
+        }
+        .disabled(disabled)
+        .opacity(disabled ? 0.4 : 1)
     }
 
     // MARK: - Schedule helpers
@@ -817,7 +890,7 @@ struct EditorView: View {
             variants[i].previewScale = currentPreviewScale
         }
 
-        switch wallpaperType {
+        switch effectiveType {
         case .standard:
             guard let image = loadedImages.first else { return }
             await manager.setWallpaper(
@@ -863,8 +936,8 @@ struct EditorView: View {
         if let presetId, let index = manager.presets.firstIndex(where: { $0.id == presetId }) {
             manager.presets[index].name = name
             manager.presets[index].timeVariants = variants
-            manager.presets[index].isAppearanceBased = (wallpaperType == .appearance)
-            manager.presets[index].isDynamic = (wallpaperType != .standard)
+            manager.presets[index].isAppearanceBased = (effectiveType == .appearance)
+            manager.presets[index].isDynamic = (effectiveType != .standard)
             if let first = variants.first {
                 manager.presets[index].offsetX = first.offsetX
                 manager.presets[index].offsetY = first.offsetY
@@ -874,7 +947,7 @@ struct EditorView: View {
             }
             manager.persistPresetsPublic()
         } else {
-            if wallpaperType == .standard, let firstUrl = originalUrls.first, let v = variants.first {
+            if effectiveType == .standard, let firstUrl = originalUrls.first, let v = variants.first {
                 manager.savePreset(
                     name: name,
                     originalUrl: firstUrl,
@@ -1226,21 +1299,24 @@ private struct HoverRowButtonStyle: ButtonStyle {
     }
 }
 
+/// Header button chrome for Preview and Save. Dims when the button is disabled so
+/// the enabled state is readable against the panel background.
 private struct HeaderSecondaryButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
     @State private var hovering = false
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .background(
                 RoundedRectangle(cornerRadius: 7)
-                    .fill(hovering ? Color.cdBgElevated : Color.cdBgSecondary)
+                    .fill(hovering && isEnabled ? Color.cdBgHover : Color.cdBgElevated)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 7)
-                    .stroke(Color.cdBorder, lineWidth: 1)
+                    .stroke(Color.cdBorderStrong, lineWidth: 1)
             )
             .onHover { hovering = $0 }
-            .opacity(configuration.isPressed ? 0.8 : 1.0)
+            .opacity(!isEnabled ? 0.4 : configuration.isPressed ? 0.8 : 1.0)
     }
 }
 
