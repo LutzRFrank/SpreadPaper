@@ -5,71 +5,58 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for taking the time to report a bug! Please fill out the information below to help us fix it.
-
-  - type: textarea
-    id: description
-    attributes:
-      label: Describe the bug
-      description: A clear and concise description of what the bug is.
-      placeholder: Tell us what went wrong...
-    validations:
-      required: true
+        Use the title as a one-line summary of what is broken. Below, tell us what you saw and how to make it happen again. The fix can wait for the pull request.
 
   - type: textarea
     id: steps
     attributes:
       label: Steps to reproduce
-      description: How can we reproduce this issue?
+      description: Numbered, from launch, so someone else can see the same thing.
       placeholder: |
         1. Launch SpreadPaper
-        2. Open an image...
-        3. Click on...
-        4. See error
-    validations:
-      required: true
-
-  - type: textarea
-    id: expected
-    attributes:
-      label: Expected behavior
-      description: What did you expect to happen?
-      placeholder: I expected...
+        2. Open a preset in the editor
+        3. Click ...
     validations:
       required: true
 
   - type: textarea
     id: actual
     attributes:
-      label: Actual behavior
-      description: What actually happened?
-      placeholder: Instead, what happened was...
+      label: What happens
+      description: What you see after the last step.
+      placeholder: The border fades in and out on a loop for as long as the field has focus.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should happen
+      placeholder: The border turns solid and stays solid until focus leaves.
     validations:
       required: true
 
   - type: input
     id: version
     attributes:
-      label: SpreadPaper Version
-      description: What version of SpreadPaper are you using?
-      placeholder: e.g., v1.0.1
+      label: SpreadPaper version
+      description: Settings, Updates, or the About panel.
+      placeholder: e.g. 1.8.0
     validations:
       required: true
 
   - type: input
     id: macos
     attributes:
-      label: macOS Version
-      description: What version of macOS are you running?
-      placeholder: e.g., macOS 15.1 (Sequoia)
+      label: macOS version
+      placeholder: e.g. macOS 26.1
     validations:
       required: true
 
   - type: dropdown
     id: mac-type
     attributes:
-      label: Mac Type
-      description: What type of Mac are you using?
+      label: Mac type
       options:
         - Apple Silicon (M1/M2/M3/M4)
         - Intel
@@ -79,26 +66,16 @@ body:
   - type: input
     id: monitors
     attributes:
-      label: Number of Monitors
-      description: How many monitors do you have connected?
-      placeholder: e.g., 2
+      label: Monitors
+      description: How many, and how they are arranged if it matters.
+      placeholder: e.g. 2 side by side, or 3 vertical
     validations:
       required: false
 
   - type: textarea
-    id: screenshots
+    id: extra
     attributes:
-      label: Screenshots or Logs
-      description: If applicable, add screenshots or error logs to help explain the problem.
-      placeholder: Drag and drop images here or paste error messages...
-    validations:
-      required: false
-
-  - type: textarea
-    id: additional
-    attributes:
-      label: Additional context
-      description: Add any other context about the problem here.
-      placeholder: Any other relevant information...
+      label: Screenshots, logs, or anything else
+      description: Drag images here. Anything else that might matter, like when it started, other displays, or what you tried. If the wallpaper failed to apply, run `log show --predicate 'subsystem == "com.cattlea.SpreadPaper"' --info --last 10m` in Terminal and paste the output.
     validations:
       required: false
