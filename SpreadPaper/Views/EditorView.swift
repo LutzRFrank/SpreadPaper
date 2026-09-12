@@ -130,8 +130,12 @@ struct EditorView: View {
             }
         }
         .onAppear {
-            if let presetId, let preset = manager.presets.first(where: { $0.id == presetId }) {
-                loadExistingPreset(preset)
+            if let presetId {
+                if let preset = manager.presets.first(where: { $0.id == presetId }) {
+                    loadExistingPreset(preset)
+                }
+            } else {
+                importImages(navigation.takePendingImageURLs(), quiet: true)
             }
         }
     }
@@ -255,7 +259,7 @@ struct EditorView: View {
                 isFlipped: isFlippedBinding,
                 manager: manager,
                 onSelectImage: addImages,
-                onDropImage: { _ in },
+                onDropImages: { importImages($0) },
                 currentPreviewScale: $currentPreviewScale
             )
             .padding(64)
@@ -780,11 +784,47 @@ struct EditorView: View {
         panel.allowedContentTypes = [.image]
         panel.allowsMultipleSelection = wallpaperType == .dynamic
         guard panel.runModal() == .OK else { return }
+        importImages(panel.urls)
+    }
 
+    /// Loads image files past the duplicate and limit checks and reports the outcome.
+    /// With `quiet` the toast only appears when a file was left out.
+    private func importImages(_ urls: [URL], quiet: Bool = false) {
+        let fresh = urls.filter { !originalUrls.contains($0) }
+        guard !fresh.isEmpty else {
+            if !urls.isEmpty { showToast("Already added") }
+            return
+        }
+        let room = maxImages - loadedImages.count
+        guard room > 0 else {
+            showToast("Limit is \(maxImages) image\(maxImages == 1 ? "" : "s")")
+            return
+        }
+        let added = addImages(from: fresh)
+        let overLimit = max(0, fresh.count - room)
+        let unreadable = fresh.count - added - overLimit
+        if overLimit > 0 {
+            showToast("Added \(added), limit is \(maxImages)")
+        } else if unreadable > 0 {
+            showToast(added == 0 ? "Couldn't read image" : "Added \(added), skipped \(unreadable) unreadable")
+        } else if !quiet {
+            showToast("Added \(added) image\(added == 1 ? "" : "s")")
+        }
+    }
+
+    /// Most images the current wallpaper type can hold.
+    private var maxImages: Int {
+        wallpaperType == .appearance ? 2 : wallpaperType == .dynamic ? 16 : 1
+    }
+
+    /// Appends readable images up to the type's limit and returns how many were added.
+    /// Each slot gets the default time of day for its position.
+    @discardableResult
+    private func addImages(from urls: [URL]) -> Int {
         let dayPhases = [(7,0),(9,0),(12,0),(15,0),(17,0),(19,0),(21,0),(23,0),(1,0),(3,0),(5,0),(6,0),(8,0),(10,0),(14,0),(16,0)]
-        let maxImages = wallpaperType == .appearance ? 2 : wallpaperType == .dynamic ? 16 : 1
+        let countBefore = loadedImages.count
 
-        for url in panel.urls {
+        for url in urls {
             guard loadedImages.count < maxImages else { break }
             guard let image = NSImage(contentsOf: url) else { continue }
 
@@ -810,6 +850,7 @@ struct EditorView: View {
                 fitImage()
             }
         }
+        return loadedImages.count - countBefore
     }
 
     private func removeVariant(at index: Int) {
