@@ -133,11 +133,11 @@ struct GalleryView: View {
             Button(action: { navigation.showCreationModal = true }) {
                 HStack(spacing: 6) {
                     Ph.plus.bold
-                        .color(.white)
+                        .color(Color.cdTextPrimary)
                         .frame(width: 12, height: 12)
                     Text("New Wallpaper")
                         .font(.system(size: 12.5, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.cdTextPrimary)
                 }
                 .padding(.horizontal, 12)
                 .frame(height: 28)
@@ -350,7 +350,7 @@ struct GalleryView: View {
                         RoundedRectangle(cornerRadius: 24)
                             .stroke(Color.cdBorder, lineWidth: 1)
                     )
-                    .shadow(color: .black.opacity(0.35), radius: 18, y: 6)
+                    .shadow(color: .cdShadow, radius: 18, y: 6)
                     .frame(width: 96, height: 96)
                 Ph.image.regular
                     .color(Color.cdTextTertiary)
@@ -371,11 +371,11 @@ struct GalleryView: View {
             Button(action: { navigation.showCreationModal = true }) {
                 HStack(spacing: 6) {
                     Ph.plus.bold
-                        .color(.white)
+                        .color(Color.cdTextPrimary)
                         .frame(width: 12, height: 12)
                     Text("New Wallpaper")
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.cdTextPrimary)
                 }
                 .padding(.horizontal, 16)
                 .frame(height: 34)
@@ -674,9 +674,9 @@ private struct FilterRow: View {
                 Text("\(count)")
                     .font(.system(size: 11, weight: .medium))
                     .monospacedDigit()
-                    .foregroundStyle(isSelected ? Color.white.opacity(0.75) : Color.cdTextTertiary)
+                    .foregroundStyle(isSelected ? Color.cdTextPrimary.opacity(0.75) : Color.cdTextTertiary)
             }
-            .foregroundStyle(isSelected ? Color.white : Color.cdTextSecondary)
+            .foregroundStyle(isSelected ? Color.cdTextPrimary : Color.cdTextSecondary)
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
             .background(
@@ -692,7 +692,7 @@ private struct FilterRow: View {
     private var icon: some View {
         Image(systemName: filter.systemImage)
             .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(isSelected ? Color.white : Color.cdTextSecondary)
+            .foregroundStyle(isSelected ? Color.cdTextPrimary : Color.cdTextSecondary)
     }
 }
 
