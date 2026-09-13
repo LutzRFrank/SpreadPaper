@@ -194,8 +194,24 @@ private struct CloseButton: View {
 private struct HeroView: View {
     let selectedType: WallpaperType
     let monitorScale: CGFloat
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Nothing in the hero moves unless Light & Dark is up and motion is allowed.
+    private var isStill: Bool {
+        reduceMotion || selectedType != .appearance
+    }
 
     var body: some View {
+        // One clock for every panel and the credit, so the whole spread turns on the same instant.
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: isStill)) { context in
+            let elapsed = HeroCrossfade.elapsed(at: context.date, reduceMotion: reduceMotion)
+            scene(elapsed: elapsed)
+                .overlay(alignment: .bottom) { credit(elapsed: elapsed) }
+        }
+    }
+
+    /// Tinted glow behind the three-monitor illustration for the selected kind.
+    private func scene(elapsed: TimeInterval) -> some View {
         ZStack {
             Color.cdCanvasBg
             RadialGradient(
@@ -214,38 +230,66 @@ private struct HeroView: View {
                     width: geo.size.width - inset.sides * 2,
                     height: geo.size.height - inset.top - inset.bottom
                 )
-                MonitorGroup(selectedType: selectedType)
+                MonitorGroup(selectedType: selectedType, elapsed: elapsed)
                     .frame(width: groupRect.width, height: groupRect.height)
                     .position(x: groupRect.midX, y: groupRect.midY)
                     .scaleEffect(monitorScale)
             }
         }
-        .overlay(alignment: .bottom) {
-            PhotoCredit()
-                .padding(.bottom, 12)
+    }
+
+    /// Attribution for the kind on screen, hidden outright for the kind that has none.
+    private func credit(elapsed: TimeInterval) -> some View {
+        ZStack {
+            // A faded-out credit still hit-tests and still reads aloud, over the one on show.
+            PhotoCredit(photo: .day)
                 .opacity(selectedType == .standard ? 1 : 0)
-                .animation(.easeInOut(duration: 0.4), value: selectedType)
+                .allowsHitTesting(selectedType == .standard)
+                .accessibilityHidden(selectedType != .standard)
+            ThemedCredit(elapsed: elapsed)
+                .opacity(selectedType == .appearance ? 1 : 0)
+                .allowsHitTesting(selectedType == .appearance)
+                .accessibilityHidden(selectedType != .appearance)
         }
+        .padding(.bottom, 12)
+        .animation(.easeInOut(duration: 0.4), value: selectedType)
     }
 }
 
-/// Attribution for the hero photograph, linking the photographer and Unsplash.
+/// Attribution for one hero photograph, linking the photographer and Unsplash.
 private struct PhotoCredit: View {
+    let photo: HeroPhoto
+
     var body: some View {
         HStack(spacing: 0) {
             Text("Photo by ")
-            Link("Ganapathy Kumar", destination: URL(string: "https://unsplash.com/@gkumar2175")!)
+            Link(photo.photographer, destination: photo.profile)
                 .underline()
             Text(" on ")
-            Link(
-                "Unsplash",
-                destination: URL(string: "https://unsplash.com/photos/tropical-beach-at-sunset-in-maui-7782WXBriyM")!
-            )
-            .underline()
+            Link("Unsplash", destination: photo.page)
+                .underline()
         }
         .font(.system(size: 10))
         .foregroundStyle(Color.cdTextSecondary)
         .tint(Color.cdTextSecondary)
+    }
+}
+
+/// Credit for whichever photograph the Light & Dark hero is showing.
+/// One name hands over to the other as the dissolve passes halfway.
+private struct ThemedCredit: View {
+    let elapsed: TimeInterval
+
+    var body: some View {
+        ZStack {
+            ForEach(HeroPhoto.allCases, id: \.self) { photo in
+                let opacity = HeroCrossfade.creditOpacity(of: photo, at: elapsed)
+                PhotoCredit(photo: photo)
+                    .opacity(opacity)
+                    .allowsHitTesting(opacity > 0)
+                    .accessibilityHidden(opacity == 0)
+            }
+        }
     }
 }
 
@@ -298,6 +342,7 @@ struct HeroSpread: Equatable {
 /// Three 16:10 monitors, a full-height main one flanked by two smaller, centred in the hero.
 private struct MonitorGroup: View {
     let selectedType: WallpaperType
+    let elapsed: TimeInterval
 
     var body: some View {
         GeometryReader { geo in
@@ -307,11 +352,7 @@ private struct MonitorGroup: View {
                 ForEach(MonitorPosition.allCases, id: \.self) { position in
                     let slice = layout.slice(position)
                     Monitor(width: slice.frame.width, height: slice.frame.height) {
-                        SceneStack(
-                            selectedType: selectedType,
-                            position: position,
-                            slice: slice
-                        )
+                        SceneStack(selectedType: selectedType, slice: slice, elapsed: elapsed)
                     }
                 }
             }
@@ -357,14 +398,14 @@ enum MonitorPosition: CaseIterable {
 /// Cross-fades the three kind scenes so switching kinds animates in place.
 private struct SceneStack: View {
     let selectedType: WallpaperType
-    let position: MonitorPosition
     let slice: PanelSlice
+    let elapsed: TimeInterval
 
     var body: some View {
         ZStack {
             SpreadPhoto(slice: slice)
                 .opacity(selectedType == .standard ? 1 : 0)
-            ThemedScene(position: position)
+            ThemedScene(slice: slice, elapsed: elapsed)
                 .opacity(selectedType == .appearance ? 1 : 0)
             DynamicScene(slice: slice)
                 .opacity(selectedType == .dynamic ? 1 : 0)
@@ -373,111 +414,17 @@ private struct SceneStack: View {
     }
 }
 
-/// Light image on the left monitor, dark on the other two; only the main one gets a moon.
+/// The day photograph turning into the night one and back, on a slow loop.
+/// Both slice alike, so this panel stays continuous with its neighbours.
 private struct ThemedScene: View {
-    let position: MonitorPosition
+    let slice: PanelSlice
+    let elapsed: TimeInterval
 
     var body: some View {
-        GeometryReader { geo in
-            let w = geo.size.width
-            let h = geo.size.height
-            switch position {
-            case .leftSide:
-                lightVariant(w: w, h: h)
-            case .main:
-                darkVariant(w: w, h: h, showMoon: true, showStars: true)
-            case .rightSide:
-                darkVariant(w: w, h: h, showMoon: false, showStars: true)
-            }
-        }
-    }
-
-    /// Warm daytime gradient with a sun.
-    private func lightVariant(w: CGFloat, h: CGFloat) -> some View {
         ZStack {
-            LinearGradient(
-                colors: SceneArt.daySky,
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            RadialGradient(
-                colors: [SceneArt.dayHaze.opacity(0.95), .clear],
-                center: UnitPoint(x: 0.30, y: 0.30),
-                startRadius: 0,
-                endRadius: w * 0.55
-            )
-            // Sun
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [SceneArt.sunCore, SceneArt.sunRim],
-                        center: .center,
-                        startRadius: 0,
-                        endRadius: w * 0.11
-                    )
-                )
-                .frame(width: w * 0.22, height: w * 0.22)
-                .shadow(color: SceneArt.sunRim.opacity(0.7), radius: 30)
-                .position(x: w * 0.18 + w * 0.11, y: h * 0.20 + w * 0.11)
-        }
-    }
-
-    /// Night gradient with an optional moon and stars.
-    private func darkVariant(w: CGFloat, h: CGFloat, showMoon: Bool, showStars: Bool) -> some View {
-        ZStack {
-            LinearGradient(
-                colors: SceneArt.nightSky,
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            RadialGradient(
-                colors: [SceneArt.nightHaze.opacity(0.95), .clear],
-                center: UnitPoint(x: 0.70, y: 0.70),
-                startRadius: 0,
-                endRadius: w * 0.55
-            )
-
-            if showStars {
-                StarsView()
-            }
-
-            if showMoon {
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [SceneArt.moonCore, SceneArt.moonRim],
-                            center: UnitPoint(x: 0.35, y: 0.35),
-                            startRadius: 0,
-                            endRadius: w * 0.11
-                        )
-                    )
-                    .frame(width: w * 0.22, height: w * 0.22)
-                    .shadow(color: SceneArt.moonRim.opacity(0.45), radius: 22)
-                    .position(x: w - (w * 0.18 + w * 0.11), y: h * 0.22 + w * 0.11)
-            }
-        }
-    }
-}
-
-/// Five fixed stars at fractional positions.
-private struct StarsView: View {
-    private let stars: [(CGFloat, CGFloat, CGFloat, Double)] = [
-        (0.30, 0.25, 1.5, 0.9),
-        (0.55, 0.40, 1.0, 0.7),
-        (0.75, 0.20, 1.5, 0.85),
-        (0.40, 0.65, 1.0, 0.6),
-        (0.88, 0.55, 1.5, 0.8)
-    ]
-
-    var body: some View {
-        GeometryReader { geo in
-            ForEach(0..<stars.count, id: \.self) { i in
-                let s = stars[i]
-                Circle()
-                    .fill(SceneArt.starlight.opacity(s.3))
-                    .frame(width: s.2, height: s.2)
-                    .position(x: geo.size.width * s.0, y: geo.size.height * s.1)
-            }
+            SpreadPhoto(slice: slice, photo: .day)
+            SpreadPhoto(slice: slice, photo: .night)
+                .opacity(HeroCrossfade.nightOpacity(at: elapsed))
         }
     }
 }

@@ -97,41 +97,17 @@ extension Color {
 /// Palette for the creation modal's illustrated preview scenes.
 /// Artwork, not chrome, so it sits beside the tokens.
 enum SceneArt {
-    /// Centre of the sun disc.
-    static let sunCore = Color(hex: 0xf4e4a0)
-
-    /// Edge of the sun disc, and the colour of its glow.
-    static let sunRim = Color(hex: 0xd69a2a)
-
-    /// Daytime sky, from the top-leading to the bottom-trailing corner.
-    static let daySky = [Color(hex: 0xe4cf8e), Color(hex: 0xcba06f)]
-
-    /// Pale bloom across the daytime sky.
-    static let dayHaze = Color(hex: 0xebdeb2)
-
-    /// Night sky, from the top-leading to the bottom-trailing corner.
-    static let nightSky = [Color(hex: 0x2b2442), Color(hex: 0x14102a)]
-
-    /// Violet bloom low in the night sky.
-    static let nightHaze = Color(hex: 0x4c3d78)
-
-    /// Centre of the moon disc.
-    static let moonCore = Color(hex: 0xe4e1d5)
-
-    /// Edge of the moon disc, and the colour of its glow.
-    static let moonRim = Color(hex: 0xa6a4b0)
-
-    /// A pinprick star.
-    static let starlight = Color.white
+    /// Night sky, darkest of the day-cycle colours.
+    static let nightSky = Color(hex: 0x2b2442)
 
     /// A full day of sky colour, midnight through midnight, read left to right.
     static let dayCycleStops: [Gradient.Stop] = [
-        .init(color: nightSky[0], location: 0.0),
+        .init(color: nightSky, location: 0.0),
         .init(color: Color(hex: 0x503470), location: 0.2),
         .init(color: Color(hex: 0x9a6944), location: 0.42),
         .init(color: Color(hex: 0xe2b965), location: 0.55),
         .init(color: Color(hex: 0x4e6a9e), location: 0.8),
-        .init(color: nightSky[0], location: 1.0)
+        .init(color: nightSky, location: 1.0)
     ]
 
     /// Glow of the dot that travels the day cycle, centre outwards.
