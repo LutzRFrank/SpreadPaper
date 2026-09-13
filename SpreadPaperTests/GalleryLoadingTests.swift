@@ -329,4 +329,90 @@ struct GalleryLoadingTests {
         #expect(GalleryLoading.idleTimeout >= .seconds(5))
         #expect(GalleryLoading.idleTimeout <= .seconds(15))
     }
+
+    // MARK: - Retrying while a pass has not returned
+
+    @Test func pressingTryAgainTenTimesLeavesOnePass() {
+        let gate = ThumbnailPassGate()
+        #expect(gate.request(), "the first pass has nothing in its way")
+
+        for press in 1...10 {
+            #expect(!gate.request(), "press \(press) arrived while a pass was still out")
+        }
+
+        #expect(gate.outstanding == 1, "ten presses left \(gate.outstanding) passes running")
+    }
+
+    @Test func theRetryIsNotOfferedWhileAPassIsStillParked() {
+        let gate = ThumbnailPassGate()
+        #expect(gate.canStart, "an idle gallery has a retry to offer")
+
+        _ = gate.request()
+        #expect(!gate.canStart, "a pass is parked inside its read, so a retry cannot reach it")
+
+        gate.passReturned()
+        #expect(gate.canStart, "the read came back, so another pass may go")
+    }
+
+    @Test func aRequestHeldWhileAPassWasOutRunsWhenItReturns() {
+        let gate = ThumbnailPassGate()
+        _ = gate.request()
+        _ = gate.request()
+
+        #expect(gate.isHolding, "the second request is held rather than dropped")
+        gate.passReturned()
+        #expect(gate.takeHeldRequest(), "the held request goes once the pass is back")
+        #expect(gate.request(), "and it starts a pass of its own")
+    }
+
+    @Test func onlyOneCallerEverRunsAHeldRequest() {
+        let gate = ThumbnailPassGate()
+        _ = gate.request()
+        _ = gate.request()
+        gate.passReturned()
+
+        #expect(gate.takeHeldRequest(), "the gallery on screen takes the held request")
+        #expect(!gate.takeHeldRequest(), "a second asker must not run it all over again")
+    }
+
+    @Test func aPassReturningWithNothingHeldStartsNothing() {
+        let gate = ThumbnailPassGate()
+        _ = gate.request()
+        gate.passReturned()
+
+        #expect(!gate.takeHeldRequest(), "nobody asked for another pass while that one ran")
+        #expect(gate.outstanding == 0)
+    }
+
+    @Test func theGalleryNeverCountsFewerPassesThanNone() {
+        let gate = ThumbnailPassGate()
+        gate.passReturned()
+        gate.passReturned()
+
+        #expect(gate.outstanding == 0, "a stray return must not leave the count below zero")
+        #expect(gate.canStart)
+    }
+
+    @Test func leavingTheGalleryAndComingBackCannotStartASecondPass() throws {
+        let built = try AppSources.lines(
+            in: try AppSources.all().filter { $0.lastPathComponent == "GalleryView.swift" },
+            containing: ["ThumbnailPassGate("]
+        )
+
+        #expect(
+            built.isEmpty,
+            """
+            the gallery builds its own gate at \(built.joined(separator: ", ")), \
+            so the route switch rebuilding it forgets the passes already out
+            """
+        )
+    }
+
+    @Test func theBannerSaysWhyTheRetryIsWithheld() {
+        let offered = GalleryLoading.failureMessage(outstandingPasses: 0)
+        let withheld = GalleryLoading.failureMessage(outstandingPasses: 1)
+
+        #expect(offered != withheld, "a withheld retry needs a reason the user can read")
+        #expect(withheld.contains("still being read"), "the line has to name what is holding it up")
+    }
 }

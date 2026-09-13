@@ -20,6 +20,7 @@ struct GalleryView: View {
     @State private var loadPhase: GalleryPhase = .loading
     @State private var loadRun: UUID = UUID()
     @State private var loadDelivery: Task<Void, Never>? = nil
+    @State private var passGate = ThumbnailPassGate.shared
     @State private var reportedPresets: Set<UUID> = []
     @State private var hasDismissedFailure: Bool = false
     @State private var selectedPresetId: UUID? = nil
@@ -79,6 +80,10 @@ struct GalleryView: View {
         .task { reloadThumbnails() }
         .onChange(of: colorScheme) { _, _ in reloadThumbnails() }
         .onChange(of: manager.presets.map(\.id)) { _, _ in reloadThumbnails() }
+        .onChange(of: passGate.outstanding) { _, outstanding in
+            guard outstanding == 0, passGate.takeHeldRequest() else { return }
+            reloadThumbnails()
+        }
         .confirmationDialog(
             "Delete '\(presetPendingDelete?.name ?? "")'?",
             isPresented: Binding(
@@ -138,11 +143,14 @@ struct GalleryView: View {
     // MARK: - Thumbnail failure banner
 
     /// Says the previews stopped arriving, and offers another attempt at them.
+    /// The attempt is withheld while the pass that stopped is still parked
+    /// inside its read, since a second pass cannot reach it.
     private var thumbnailFailureBanner: some View {
-        HStack(spacing: 10) {
+        let canRetry = passGate.canStart
+        return HStack(spacing: 10) {
             Ph.image.regular
                 .cdIcon(Color.cdTextSecondary, size: 14)
-            Text("Previews stopped loading. Your wallpapers are all still here.")
+            Text(GalleryLoading.failureMessage(outstandingPasses: passGate.outstanding))
                 .font(.system(size: 12))
                 .foregroundStyle(Color.cdTextPrimary)
                 .lineLimit(2)
@@ -164,6 +172,9 @@ struct GalleryView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .disabled(!canRetry)
+            .opacity(canRetry ? 1 : 0.45)
+            .help(canRetry ? "Load the previews again" : "Waiting for the last attempt to stop")
             Button {
                 hasDismissedFailure = true
             } label: {
@@ -566,10 +577,11 @@ struct GalleryView: View {
         return manager.presets.filter { $0.kind == type }
     }
 
-    /// Rebuilds every card thumbnail off-main from a main-actor snapshot of the presets.
-    /// Picks the variant that matches the current appearance or time of day.
-    /// Cards fill in one by one, and a stalled run is given up on.
+    /// Rebuilds every card thumbnail off-main from a main-actor snapshot of the presets,
+    /// picking the variant that matches the current appearance or time of day. A pass
+    /// already out is left to finish, its request held until that one is back.
     private func reloadThumbnails() {
+        guard passGate.request() else { return }
         let run = UUID()
         loadRun = run
         loadPhase = .loading
@@ -611,17 +623,24 @@ struct GalleryView: View {
 
         let requested = jobs.count
 
+        let (events, continuation) = AsyncStream<ThumbnailEvent>.makeStream()
+        let render = Task.detached(priority: .userInitiated) {
+            renderThumbnails(jobs: jobs, maxPixelSize: maxPixelSize) { event in
+                continuation.yield(event)
+            }
+            continuation.finish()
+        }
+        continuation.onTermination = { _ in render.cancel() }
+
+        // Never cancelled: the count has to come down even when the gallery
+        // that started the pass is long gone.
+        Task {
+            await render.value
+            passGate.passReturned()
+        }
+
         loadDelivery?.cancel()
         loadDelivery = Task {
-            let (events, continuation) = AsyncStream<ThumbnailEvent>.makeStream()
-            let render = Task.detached(priority: .userInitiated) {
-                renderThumbnails(jobs: jobs, maxPixelSize: maxPixelSize) { event in
-                    continuation.yield(event)
-                }
-                continuation.finish()
-            }
-            continuation.onTermination = { _ in render.cancel() }
-
             let outcome = await ThumbnailRun.consume(
                 events,
                 stopping: continuation,
