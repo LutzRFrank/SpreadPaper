@@ -63,7 +63,7 @@ struct CreationModal: View {
                         .font(.system(size: 11, weight: .semibold))
                         .tracking(1.1)
                         .foregroundStyle(Color.cdAccent.opacity(0.9))
-                    Text("Let's make something beautiful.")
+                    Text("Pick a wallpaper kind.")
                         .font(.system(size: 24, weight: .bold))
                         .tracking(-0.48)
                         .foregroundStyle(Color.cdTextPrimary)
@@ -574,6 +574,7 @@ private struct PillPicker: View {
 // MARK: - Caption
 
 /// Kind title and subtitle as one centred run of text.
+/// The fixed floor holds the footer still.
 private struct Caption: View {
     let type: WallpaperType
 
@@ -609,19 +610,21 @@ private struct Footer: View {
     let onContinue: () -> Void
 
     private var hintText: String {
-        if displayCount > 0 {
-            return "\(displayCount) display\(displayCount == 1 ? "" : "s") detected"
-        }
-        return "displays detected"
+        DisplayInfo.countLabel(displayCount)
+    }
+
+    /// Green only while there is a display to spread a wallpaper over.
+    private var dotColor: Color {
+        displayCount > 0 ? .cdSuccess : .cdTextTertiary
     }
 
     var body: some View {
         HStack(spacing: 12) {
             HStack(spacing: 6) {
                 Circle()
-                    .fill(Color.cdSuccess)
+                    .fill(dotColor)
                     .frame(width: 6, height: 6)
-                    .shadow(color: Color.cdSuccess.opacity(0.6), radius: 4)
+                    .shadow(color: dotColor.opacity(displayCount > 0 ? 0.6 : 0), radius: 4)
                 Text(hintText)
                     .font(.system(size: 12))
                     .foregroundStyle(Color.cdTextTertiary)
