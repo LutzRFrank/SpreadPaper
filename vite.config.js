@@ -77,7 +77,7 @@ function phosphorIcons() {
 
 export default defineConfig({
   plugins: [htmlIncludes(), phosphorIcons(), tailwindcss()],
-  base: '/SpreadPaper/',
+  base: '/',
   build: {
     outDir: 'dist',
   },

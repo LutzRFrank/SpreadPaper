@@ -11,7 +11,7 @@
 
   **Free • Open Source • Native macOS App**
 
-  **[See it in action at spreadpaper.github.io](https://spreadpaper.github.io/SpreadPaper/)**
+  **[See it in action at spreadpaper.app](https://spreadpaper.app/)**
 </div>
 
 ---
