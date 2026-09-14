@@ -75,9 +75,26 @@ enum WallpaperFilenames {
         return kept
     }
 
+    /// Newest render each departed display holds on to, keyed by that display.
+    /// A Space pointing at a display that comes back still resolves.
+    private static func newestPerDepartedDisplay(
+        _ filenames: [String],
+        connected: Set<CGDirectDisplayID>,
+        displayID: (String) -> CGDirectDisplayID?,
+        timestamp: (String) -> Int?
+    ) -> Set<String> {
+        var newest: [CGDirectDisplayID: String] = [:]
+        for name in filenames {
+            guard let id = displayID(name), !connected.contains(id) else { continue }
+            if let held = newest[id], (timestamp(held) ?? 0) >= (timestamp(name) ?? 0) { continue }
+            newest[id] = name
+        }
+        return Set(newest.values)
+    }
+
     /// Names the static wallpaper directory can lose after an apply, from its own listing.
-    /// Each display keeps its newest renders, capped at the retention limit.
-    /// Legacy names go once every display is set.
+    /// Each connected display keeps its newest renders up to the retention limit.
+    /// A departed display keeps one; legacy names go once all are set.
     static func removableStaticFiles(
         in filenames: [String],
         displayIDs: [CGDirectDisplayID],
@@ -92,15 +109,26 @@ enum WallpaperFilenames {
             owned.formUnion(renders)
             kept.formUnion(keptRenders(renders, current: keeping[displayID], timestamp: staticTimestamp))
         }
+        let connected = Set(displayIDs)
+        // An empty display list proves nothing about what is still in use, so it sweeps nothing.
+        let sweepUnowned = sweepLegacy && !displayIDs.isEmpty
+        let departedKeep = sweepUnowned
+            ? newestPerDepartedDisplay(filenames, connected: connected, displayID: staticDisplayID, timestamp: staticTimestamp)
+            : []
         return filenames.filter { name in
             guard name.hasSuffix(".png"), !kept.contains(name) else { return false }
-            return owned.contains(name) || (sweepLegacy && isLegacyStaticName(name))
+            if owned.contains(name) { return true }
+            guard sweepUnowned else { return false }
+            if let displayID = staticDisplayID(name) {
+                return !connected.contains(displayID) && !departedKeep.contains(name)
+            }
+            return isLegacyStaticName(name)
         }
     }
 
     /// Names a dynamic preset directory can lose after an apply, from its own listing.
-    /// Each display keeps its newest renders; abandoned temp siblings go.
-    /// Legacy names go once every display is set.
+    /// Each connected display keeps its newest; abandoned temp siblings go.
+    /// A departed display keeps one; legacy names go once all are set.
     static func removableDynamicFiles(
         in filenames: [String],
         displayIDs: [CGDirectDisplayID],
@@ -115,12 +143,37 @@ enum WallpaperFilenames {
             owned.formUnion(renders)
             kept.formUnion(keptRenders(renders, current: keeping[displayID], timestamp: dynamicTimestamp))
         }
+        let connected = Set(displayIDs)
+        // An empty display list proves nothing about what is still in use, so it sweeps nothing.
+        let sweepUnowned = sweepLegacy && !displayIDs.isEmpty
+        let departedKeep = sweepUnowned
+            ? newestPerDepartedDisplay(filenames, connected: connected, displayID: dynamicDisplayID, timestamp: dynamicTimestamp)
+            : []
         return filenames.filter { name in
             // The HEIC writer only sweeps temps of the name it is writing, so earlier names' temps land here.
             if let target = dynamicTempTarget(name) { return !kept.contains(target) }
             guard name.hasSuffix(".heic"), !kept.contains(name) else { return false }
-            return owned.contains(name) || (sweepLegacy && isLegacyDynamicName(name))
+            if owned.contains(name) { return true }
+            guard sweepUnowned else { return false }
+            if let displayID = dynamicDisplayID(name) {
+                return !connected.contains(displayID) && !departedKeep.contains(name)
+            }
+            return isLegacyDynamicName(name)
         }
+    }
+
+    /// Display a current static name is keyed on, which says whose render it is.
+    /// Nil for a legacy name and for anything the app did not write.
+    static func staticDisplayID(_ filename: String) -> CGDirectDisplayID? {
+        guard let match = filename.wholeMatch(of: /spreadpaper_wall_(\d+)_\d+\.png/) else { return nil }
+        return CGDirectDisplayID(match.1)
+    }
+
+    /// Display a current dynamic name is keyed on, which says whose render it is.
+    /// Nil for a legacy name and for anything the app did not write.
+    static func dynamicDisplayID(_ filename: String) -> CGDirectDisplayID? {
+        guard let match = filename.wholeMatch(of: /(\d+)_\d{10,}\.heic/) else { return nil }
+        return CGDirectDisplayID(match.1)
     }
 
     /// True for a static wallpaper written before 1.7.1, when files were keyed on the screen name.
@@ -134,5 +187,16 @@ enum WallpaperFilenames {
     static func isLegacyDynamicName(_ filename: String) -> Bool {
         guard filename.hasSuffix(".heic") else { return false }
         return filename.wholeMatch(of: /\d+_\d{10,}\.heic/) == nil
+    }
+
+    /// Folders under `dynamic/` no preset claims any more, from that directory's listing.
+    /// Ids are compared as parsed UUIDs, so a folder's casing never decides.
+    /// Anything else in that directory is left alone.
+    static func removableDynamicDirectories(in names: [String], presetIds: [UUID]) -> [String] {
+        let live = Set(presetIds)
+        return names.filter { name in
+            guard let id = UUID(uuidString: name) else { return false }
+            return !live.contains(id)
+        }
     }
 }
