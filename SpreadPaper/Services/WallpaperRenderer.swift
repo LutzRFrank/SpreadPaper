@@ -67,23 +67,38 @@ enum WallpaperRenderer {
 
         context.interpolationQuality = .high
 
-        if spec.isFlipped {
-            context.saveGState()
-            context.translateBy(x: drawRect.midX, y: drawRect.midY)
-            context.scaleBy(x: -1, y: 1)
-            context.translateBy(x: -drawRect.midX, y: -drawRect.midY)
-        }
-
-        context.draw(source, in: drawRect)
-
-        if spec.isFlipped {
-            context.restoreGState()
+        // Repeat the image beyond every edge. Dragging a panorama out on one side
+        // therefore brings it back in on the opposite side instead of exposing black.
+        let xRange = tileRange(origin: drawRect.minX, length: drawRect.width, viewportLength: CGFloat(widthPx))
+        let yRange = tileRange(origin: drawRect.minY, length: drawRect.height, viewportLength: CGFloat(heightPx))
+        for y in yRange {
+            for x in xRange {
+                let tile = drawRect.offsetBy(dx: CGFloat(x) * drawRect.width, dy: CGFloat(y) * drawRect.height)
+                if spec.isFlipped {
+                    context.saveGState()
+                    context.translateBy(x: tile.midX, y: tile.midY)
+                    context.scaleBy(x: -1, y: 1)
+                    context.translateBy(x: -tile.midX, y: -tile.midY)
+                }
+                context.draw(source, in: tile)
+                if spec.isFlipped {
+                    context.restoreGState()
+                }
+            }
         }
 
         guard let output = context.makeImage() else {
             throw WallpaperError.renderingFailed
         }
         return output
+    }
+
+    /// Tile indices whose translated image rectangles can intersect one viewport axis.
+    nonisolated private static func tileRange(origin: CGFloat, length: CGFloat, viewportLength: CGFloat) -> ClosedRange<Int> {
+        guard length > 0 else { return 0...0 }
+        let first = Int(floor(-origin / length))
+        let last = Int(ceil((viewportLength - origin) / length))
+        return first...max(first, last)
     }
 
     /// Encodes `image` as PNG without touching AppKit.

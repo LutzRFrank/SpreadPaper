@@ -121,6 +121,17 @@ struct WallpaperRendererTests {
         #expect(try pixel(rightOut, x: 75, y: 50).isBlue)
     }
 
+    @Test func offsetWrapsAtCanvasEdgeInsteadOfLeavingBlack() throws {
+        let source = try makeTwoToneImage(width: 200, height: 100)
+        var s = spec(screenX: 100)
+        s.offset = CGSize(width: -50, height: 0)
+        let output = try WallpaperRenderer.render(source, spec: s)
+
+        // The source ends halfway across the right display. Its left edge repeats
+        // immediately, so the far-right pixel is red rather than an empty black pixel.
+        #expect(try pixel(output, x: 99, y: 50).isRed)
+    }
+
     @Test func positiveVerticalOffsetMovesImageDown() throws {
         // Editor offsets are in SwiftUI space where +y is down.
         let source = try makeTopBottomImage(width: 200, height: 100)

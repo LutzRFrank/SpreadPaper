@@ -101,7 +101,7 @@ private struct OutsidePanelsShape: Shape {
     let panels: [CGRect]
 
     /// The canvas and each panel on one path; the even-odd fill leaves only what no panel covers.
-    func path(in rect: CGRect) -> Path {
+    nonisolated func path(in rect: CGRect) -> Path {
         var path = Path()
         path.addRect(canvas)
         for panel in panels {
@@ -117,7 +117,7 @@ private struct BezelFrameShape: Shape {
     let inner: CGRect
 
     /// Outer and inner rects on one path; the even-odd fill leaves only the ring.
-    func path(in rect: CGRect) -> Path {
+    nonisolated func path(in rect: CGRect) -> Path {
         var path = Path()
         path.addRect(outer)
         path.addRect(inner)

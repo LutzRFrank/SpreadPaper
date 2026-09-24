@@ -37,15 +37,27 @@ struct EditorCanvasView: View {
                 // Image layer
                 if let img = selectedImage {
                     let pixelSize = img.pixelSize
-                    Image(nsImage: img)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .scaleEffect(x: isFlipped ? -1 : 1, y: 1)
-                        .frame(
-                            width: pixelSize.width * previewScale * imageScale,
-                            height: pixelSize.height * previewScale * imageScale
-                        )
-                        .offset(CGSize(width: imageOffset.width + centerShift.width, height: imageOffset.height + centerShift.height))
+                    let imageWidth = pixelSize.width * previewScale * imageScale
+                    let imageHeight = pixelSize.height * previewScale * imageScale
+                    let horizontalTiles = max(1, Int(ceil(canvasWidth / max(imageWidth, 1))) + 1)
+                    let verticalTiles = max(1, Int(ceil(canvasHeight / max(imageHeight, 1))) + 1)
+                    ZStack {
+                        ForEach(-verticalTiles...verticalTiles, id: \.self) { row in
+                            ForEach(-horizontalTiles...horizontalTiles, id: \.self) { column in
+                                Image(nsImage: img)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .scaleEffect(x: isFlipped ? -1 : 1, y: 1)
+                                    .frame(width: imageWidth, height: imageHeight)
+                                    .offset(
+                                        x: imageOffset.width + centerShift.width + CGFloat(column) * imageWidth,
+                                        y: imageOffset.height + centerShift.height + CGFloat(row) * imageHeight
+                                    )
+                            }
+                        }
+                    }
+                        .frame(width: canvasWidth, height: canvasHeight)
+                        .contentShape(Rectangle())
                         .opacity(isDragging ? 0.7 : 1.0)
                         .highPriorityGesture(
                             DragGesture()
@@ -154,6 +166,13 @@ struct EditorCanvasView: View {
         if abs(newY - (h - ch) / 2.0) < threshold { newY = (h - ch) / 2.0 }
         if abs(newY - -(h - ch) / 2.0) < threshold { newY = -(h - ch) / 2.0 }
 
-        return CGSize(width: newX, height: newY)
+        // Keep the stored offset within one tile. Crossing an edge then continues
+        // seamlessly from the opposite edge and never reveals the canvas background.
+        func wrapped(_ value: CGFloat, period: CGFloat) -> CGFloat {
+            guard period > 0 else { return 0 }
+            return value - (value / period).rounded() * period
+        }
+
+        return CGSize(width: wrapped(newX, period: w), height: wrapped(newY, period: h))
     }
 }
