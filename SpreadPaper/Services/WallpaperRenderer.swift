@@ -51,11 +51,13 @@ enum WallpaperRenderer {
         let imageHeight = CGFloat(source.height)
 
         let realOffsetXPx = (spec.offset.width / spec.previewScale) * deviceScale
-        let realOffsetYPx = (spec.offset.height / spec.previewScale) * deviceScale
+        let requestedOffsetYPx = (spec.offset.height / spec.previewScale) * deviceScale
         let drawnWidthPx = imageWidth * spec.imageScale * deviceScale
         let drawnHeightPx = imageHeight * spec.imageScale * deviceScale
         let canvasWidthPx = spec.totalCanvas.width * deviceScale
         let canvasHeightPx = spec.totalCanvas.height * deviceScale
+        let verticalOffsetLimitPx = max(0, (drawnHeightPx - canvasHeightPx) / 2.0)
+        let realOffsetYPx = min(max(requestedOffsetYPx, -verticalOffsetLimitPx), verticalOffsetLimitPx)
         let centeringXPx = (canvasWidthPx - drawnWidthPx) / 2.0
         let centeringYPx = (canvasHeightPx - drawnHeightPx) / 2.0
         let relativeScreenX = spec.screenFrame.origin.x - spec.totalCanvas.origin.x
@@ -67,23 +69,21 @@ enum WallpaperRenderer {
 
         context.interpolationQuality = .high
 
-        // Repeat the image beyond every edge. Dragging a panorama out on one side
-        // therefore brings it back in on the opposite side instead of exposing black.
+        // Repeat only across the horizontal edges. This lets a panorama wrap from
+        // one side of the monitor arrangement to the other while preserving its
+        // real vertical bounds and overscan.
         let xRange = tileRange(origin: drawRect.minX, length: drawRect.width, viewportLength: CGFloat(widthPx))
-        let yRange = tileRange(origin: drawRect.minY, length: drawRect.height, viewportLength: CGFloat(heightPx))
-        for y in yRange {
-            for x in xRange {
-                let tile = drawRect.offsetBy(dx: CGFloat(x) * drawRect.width, dy: CGFloat(y) * drawRect.height)
-                if spec.isFlipped {
-                    context.saveGState()
-                    context.translateBy(x: tile.midX, y: tile.midY)
-                    context.scaleBy(x: -1, y: 1)
-                    context.translateBy(x: -tile.midX, y: -tile.midY)
-                }
-                context.draw(source, in: tile)
-                if spec.isFlipped {
-                    context.restoreGState()
-                }
+        for x in xRange {
+            let tile = drawRect.offsetBy(dx: CGFloat(x) * drawRect.width, dy: 0)
+            if spec.isFlipped {
+                context.saveGState()
+                context.translateBy(x: tile.midX, y: tile.midY)
+                context.scaleBy(x: -1, y: 1)
+                context.translateBy(x: -tile.midX, y: -tile.midY)
+            }
+            context.draw(source, in: tile)
+            if spec.isFlipped {
+                context.restoreGState()
             }
         }
 

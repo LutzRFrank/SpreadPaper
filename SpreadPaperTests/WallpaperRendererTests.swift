@@ -132,15 +132,15 @@ struct WallpaperRendererTests {
         #expect(try pixel(output, x: 99, y: 50).isRed)
     }
 
-    @Test func positiveVerticalOffsetMovesImageDown() throws {
-        // Editor offsets are in SwiftUI space where +y is down.
+    @Test func verticalOffsetIsClampedWhenImageExactlyFits() throws {
         let source = try makeTopBottomImage(width: 200, height: 100)
         var s = spec(screenX: 0)
         s.offset = CGSize(width: 0, height: 30)
         let output = try WallpaperRenderer.render(source, spec: s)
-        // Red/blue boundary moved from y=50 to y=80: y=65 is now red.
-        #expect(try pixel(output, x: 50, y: 65).isRed)
-        #expect(try pixel(output, x: 50, y: 95).isBlue)
+        // With no vertical overscan available, dragging cannot expose an edge or
+        // wrap another copy of the image in from above or below.
+        #expect(try pixel(output, x: 50, y: 10).isRed)
+        #expect(try pixel(output, x: 50, y: 90).isBlue)
     }
 
     @Test func previewScaleDividesOffset() throws {

@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.11.1](https://github.com/LutzRFrank/SpreadPaper/compare/v1.11.0...v1.11.1) (2026-09-25)
+
+### Bug Fixes
+
+* wrap panorama wallpapers horizontally without repeating them vertically
+* constrain vertical dragging to the image's real overscan
+* keep the editor preview focused on a single horizontal image strip
+
 ## [1.11.0](https://github.com/LutzRFrank/SpreadPaper/compare/v1.10.1...v1.11.0) (2026-09-25)
 
 ### Features
