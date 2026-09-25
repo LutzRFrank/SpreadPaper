@@ -32,6 +32,8 @@ class WallpaperManager {
 
     private let store: PresetStore
     private let activePresetKey = "activePresetId"
+    private var lastAppliedWallpapers: [CGDirectDisplayID: URL] = [:]
+    private var lastAppliedOptions: [NSWorkspace.DesktopImageOptionKey: Any] = [:]
 
     /// Loads screens, presets and the active preset id; `store` defaults to the app support directory.
     init(store: PresetStore? = nil) {
@@ -141,6 +143,17 @@ class WallpaperManager {
     func listenForScreenChanges() async {
         for await _ in NotificationCenter.default.notifications(named: NSApplication.didChangeScreenParametersNotification) {
             refreshScreens()
+        }
+    }
+
+    /// Reapplies the last rendered files as each Space becomes active. AppKit has
+    /// no public API to enumerate or directly update inactive Spaces.
+    func listenForActiveSpaceChanges() async {
+        for await _ in NSWorkspace.shared.notificationCenter.notifications(
+            named: NSWorkspace.activeSpaceDidChangeNotification
+        ) {
+            guard AppSettings.shared.wallpaperSpaceScope == .visited else { continue }
+            applyLastRenderedWallpapersToActiveSpace()
         }
     }
 
@@ -493,13 +506,34 @@ class WallpaperManager {
             do {
                 let url = try result.get()
                 try NSWorkspace.shared.setDesktopImageURL(url, for: display.screen, options: options)
+                lastAppliedWallpapers[display.displayID] = url
                 succeeded.insert(display.displayID)
             } catch {
                 logger.error("Applying wallpaper to \(display.name, privacy: .public) failed: \(error, privacy: .public)")
                 lastError = failureCopy(display.name)
             }
         }
+        if !succeeded.isEmpty {
+            lastAppliedOptions = options
+        }
         return succeeded
+    }
+
+    /// Applies cached render files to the active Space without rendering them again.
+    private func applyLastRenderedWallpapersToActiveSpace() {
+        for display in connectedScreens {
+            guard let url = lastAppliedWallpapers[display.displayID] else { continue }
+            do {
+                try NSWorkspace.shared.setDesktopImageURL(
+                    url,
+                    for: display.screen,
+                    options: lastAppliedOptions
+                )
+            } catch {
+                logger.error("Applying wallpaper after a Space change failed on \(display.name, privacy: .public): \(error, privacy: .public)")
+                lastError = "The wallpaper couldn't be set on \(display.name)."
+            }
+        }
     }
 
     /// True when every currently connected display got its wallpaper set.

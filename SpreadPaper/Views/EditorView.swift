@@ -358,6 +358,8 @@ struct EditorView: View {
             VStack(alignment: .leading, spacing: 0) {
                 typeSection
                 InspectorDivider()
+                spacesSection
+                InspectorDivider()
                 imagesSection
                 InspectorDivider()
                 zoomSection
@@ -389,6 +391,26 @@ struct EditorView: View {
                 .font(.cd(.callout))
                 .foregroundStyle(Color.cdTextTertiary)
                 .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var spacesSection: some View {
+        InspectorField(label: "Spaces") {
+            NativeSelect<WallpaperSpaceScope>(
+                selection: Binding(
+                    get: { settings.wallpaperSpaceScope },
+                    set: { settings.wallpaperSpaceScope = $0 }
+                ),
+                options: WallpaperSpaceScope.allCases.map { ($0, $0.title) }
+            )
+        } hint: {
+            Text(
+                settings.wallpaperSpaceScope == .current
+                    ? "Apply only to the Space that is active now."
+                    : "Keep SpreadPaper open, then visit each Space once to apply the wallpaper there."
+            )
+            .font(.cd(.callout))
+            .foregroundStyle(Color.cdTextTertiary)
         }
     }
 
@@ -874,10 +896,28 @@ struct EditorView: View {
         if !loadedImages.isEmpty {
             selectedVariantIndex = loadedImages.count - 1
             if loadedImages.count == 1 {
-                fitImage()
+                setInitialImageScale()
             }
         }
         return loadedImages.count - countBefore
+    }
+
+    /// Starts large panoramas at their natural 100% scale so any overscan remains
+    /// visible and draggable. Smaller images still grow to cover the full canvas.
+    private func setInitialImageScale() {
+        guard let image = currentImage, selectedVariantIndex < variants.count else { return }
+        let canvas = manager.totalCanvas
+        let pixelSize = image.pixelSize
+        guard canvas.width > 0, canvas.height > 0, pixelSize.width > 0, pixelSize.height > 0 else { return }
+
+        let coverScale = max(canvas.width / pixelSize.width, canvas.height / pixelSize.height)
+        if coverScale <= 1.0 {
+            variants[selectedVariantIndex].scale = 1.0
+            variants[selectedVariantIndex].offsetX = 0
+            variants[selectedVariantIndex].offsetY = 0
+        } else {
+            fitImage()
+        }
     }
 
     /// Drops a variant with its image and keeps the selection in range.

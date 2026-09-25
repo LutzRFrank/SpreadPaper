@@ -1,5 +1,19 @@
 import SwiftUI
 
+enum WallpaperSpaceScope: String, CaseIterable, Identifiable {
+    case current
+    case visited
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .current: "Current Space"
+        case .visited: "Every Space You Visit"
+        }
+    }
+}
+
 /// User preferences backed by UserDefaults; every property writes through on change.
 @Observable
 class AppSettings {
@@ -34,6 +48,14 @@ class AppSettings {
         }
     }
 
+    /// The public wallpaper API can set only the active Space. In visited mode the
+    /// last render is reapplied whenever macOS reports that another Space became active.
+    var wallpaperSpaceScope: WallpaperSpaceScope {
+        didSet {
+            UserDefaults.standard.set(wallpaperSpaceScope.rawValue, forKey: "wallpaperSpaceScope")
+        }
+    }
+
     /// Frame widths of one display, falling back to half the uniform gap on every edge.
     func bezel(for displayID: CGDirectDisplayID) -> Bezel {
         let entry = bezelWidths[String(displayID)]
@@ -58,6 +80,9 @@ class AppSettings {
         self.bezelGap = UserDefaults.standard.double(forKey: "bezelGap")
         self.bezelWidths = UserDefaults.standard.dictionary(forKey: "bezelWidths") as? [String: [String: Double]] ?? [:]
         self.bezelPerDisplay = UserDefaults.standard.bool(forKey: "bezelPerDisplay")
+        self.wallpaperSpaceScope = WallpaperSpaceScope(
+            rawValue: UserDefaults.standard.string(forKey: "wallpaperSpaceScope") ?? ""
+        ) ?? .current
 
         // Clears keys no current setting reads.
         UserDefaults.standard.removeObject(forKey: "showInMenuBar")

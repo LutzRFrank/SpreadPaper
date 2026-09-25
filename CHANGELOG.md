@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.11.0](https://github.com/LutzRFrank/SpreadPaper/compare/v1.10.1...v1.11.0) (2026-09-25)
+
+### Features
+
+* add seamless horizontal wallpaper wrapping for wide multi-monitor layouts
+* show image overscan beyond the monitor frames and start large imports at 100% zoom
+* optionally reapply the wallpaper whenever another macOS Space becomes active
+
+### Bug Fixes
+
+* restore compatibility with Swift 6 and the macOS 27.2 SDK
+* check this fork for application updates
+
+### Distribution
+
+* provide Developer ID signed ZIP and DMG downloads for Apple Silicon Macs
+
 ## [1.10.1](https://github.com/spreadpaper/SpreadPaper/compare/v1.10.0...v1.10.1) (2026-09-14)
 
 

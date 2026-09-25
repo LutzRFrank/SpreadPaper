@@ -7,7 +7,7 @@
 
   [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
   [![macOS](https://img.shields.io/badge/macOS-15.0%20Sequoia+-blue.svg)](https://www.apple.com/macos/sequoia/)
-  [![GitHub release](https://img.shields.io/github/v/release/spreadpaper/SpreadPaper)](https://github.com/spreadpaper/SpreadPaper/releases/latest)
+  [![GitHub release](https://img.shields.io/github/v/release/LutzRFrank/SpreadPaper)](https://github.com/LutzRFrank/SpreadPaper/releases/latest)
 
   **Free • Open Source • Native macOS App**
 
@@ -112,7 +112,7 @@ Perfect for:
 
 ## 📥 Download & Installation
 
-**[Download the latest version](https://github.com/spreadpaper/SpreadPaper/releases/latest)**
+**[Download the latest version](https://github.com/LutzRFrank/SpreadPaper/releases/latest)**
 
 Because SpreadPaper is a free, open-source project and not signed with a paid Apple Developer ID ($99/year), macOS Gatekeeper will flag it on the first launch. **This is normal behavior for FOSS apps.**
 

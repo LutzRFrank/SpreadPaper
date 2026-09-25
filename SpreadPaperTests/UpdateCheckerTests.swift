@@ -8,7 +8,7 @@ struct UpdateCheckerTests {
     @Test func releaseURLPointsAtGitHubReleaseTag() {
         #expect(
             UpdateChecker.releaseURL(for: "1.8.0")
-                == URL(string: "https://github.com/spreadpaper/SpreadPaper/releases/tag/v1.8.0")
+                == URL(string: "https://github.com/LutzRFrank/SpreadPaper/releases/tag/v1.8.0")
         )
     }
 
@@ -22,11 +22,11 @@ struct UpdateCheckerTests {
     @Test func changelogURLTargetsTagOrMain() {
         #expect(
             UpdateChecker.changelogURL(ref: "refs/tags/v1.8.0")
-                == URL(string: "https://raw.githubusercontent.com/spreadpaper/SpreadPaper/refs/tags/v1.8.0/CHANGELOG.md")
+                == URL(string: "https://raw.githubusercontent.com/LutzRFrank/SpreadPaper/refs/tags/v1.8.0/CHANGELOG.md")
         )
         #expect(
             UpdateChecker.changelogURL(ref: "main")
-                == URL(string: "https://raw.githubusercontent.com/spreadpaper/SpreadPaper/main/CHANGELOG.md")
+                == URL(string: "https://raw.githubusercontent.com/LutzRFrank/SpreadPaper/main/CHANGELOG.md")
         )
     }
 
@@ -50,7 +50,7 @@ struct UpdateCheckerTests {
 
     // Issue #83: a non-2xx reply stops before decoding; non-HTTP replies pass through.
     @Test func checkStatusThrowsOnlyForNon2xxHTTP() throws {
-        let url = URL(string: "https://api.github.com/repos/spreadpaper/SpreadPaper/releases/latest")!
+        let url = URL(string: "https://api.github.com/repos/LutzRFrank/SpreadPaper/releases/latest")!
         let ok = try #require(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil))
         let forbidden = try #require(HTTPURLResponse(url: url, statusCode: 403, httpVersion: nil, headerFields: nil))
 

@@ -105,7 +105,7 @@ class UpdateChecker {
     var error: String?
     var changelog: [ChangelogEntry] = []
 
-    private static let repoOwner = "spreadpaper"
+    private static let repoOwner = "LutzRFrank"
     private static let repoName = "SpreadPaper"
 
     /// GitHub release page for a version tag.

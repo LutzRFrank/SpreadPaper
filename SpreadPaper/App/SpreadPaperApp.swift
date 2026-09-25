@@ -33,6 +33,9 @@ struct SpreadPaperApp: App {
                 await manager.listenForScreenChanges()
             }
             .task {
+                await manager.listenForActiveSpaceChanges()
+            }
+            .task {
                 await checkForUpdates()
             }
             .onAppear {

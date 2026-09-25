@@ -55,6 +55,17 @@ struct EditorCanvasView: View {
                                     )
                             }
                         }
+
+                        Rectangle()
+                            .stroke(
+                                Color.cdAccent.opacity(0.55),
+                                style: StrokeStyle(lineWidth: 1, dash: [5, 4])
+                            )
+                            .frame(width: imageWidth, height: imageHeight)
+                            .offset(
+                                x: imageOffset.width + centerShift.width,
+                                y: imageOffset.height + centerShift.height
+                            )
                     }
                         .frame(width: canvasWidth, height: canvasHeight)
                         .contentShape(Rectangle())
@@ -105,7 +116,6 @@ struct EditorCanvasView: View {
                 }
             }
             .frame(width: canvasWidth, height: canvasHeight)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
             .overlay(
                 RoundedRectangle(cornerRadius: 6)
                     .stroke(Color.cdAccent, lineWidth: 2)
