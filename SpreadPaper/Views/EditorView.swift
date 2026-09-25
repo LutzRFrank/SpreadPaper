@@ -591,7 +591,11 @@ struct EditorView: View {
                     isOn: Binding(
                         get: { settings.bezelPerDisplay },
                         set: { perDisplay in
-                            if !perDisplay { syncBezelsToFirstDisplay() }
+                            if perDisplay {
+                                initializePerEdgeBezelsIfNeeded()
+                            } else {
+                                syncBezelsToFirstDisplay()
+                            }
                             settings.bezelPerDisplay = perDisplay
                         }
                     )
@@ -600,20 +604,22 @@ struct EditorView: View {
                 if settings.bezelPerDisplay {
                     ForEach(manager.connectedScreens) { display in
                         VStack(alignment: .leading, spacing: 6) {
-                            Text(display.name)
+                            Text(displayLabel(display))
                                 .font(.cd(.callout, .medium))
                                 .foregroundStyle(Color.cdTextPrimary)
                                 .lineLimit(1)
                                 .truncationMode(.middle)
-                            bezelSlider(label: "Horizontal", value: displayBezelBinding(display.displayID, \.horizontal))
-                            bezelSlider(label: "Vertical", value: displayBezelBinding(display.displayID, \.vertical))
+                            bezelSlider(label: "Left", value: displayBezelBinding(display.displayID, \.left))
+                            bezelSlider(label: "Right", value: displayBezelBinding(display.displayID, \.right))
+                            bezelSlider(label: "Top", value: displayBezelBinding(display.displayID, \.top))
+                            bezelSlider(label: "Bottom", value: displayBezelBinding(display.displayID, \.bottom))
                         }
                     }
                 }
             }
             .onChange(of: settings.bezelWidths) { _, _ in manager.refreshScreens() }
         } hint: {
-            Text("Frame width around each panel: horizontal for the left and right edges, vertical for top and bottom.")
+            Text("Uniform mode uses symmetric frame widths. Per-display mode controls each edge independently.")
                 .font(.cd(.callout))
                 .foregroundStyle(Color.cdTextTertiary)
         }
@@ -655,6 +661,49 @@ struct EditorView: View {
         for display in manager.connectedScreens.dropFirst() {
             settings.setBezel(bezel, for: display.displayID)
         }
+    }
+
+    /// Migrates symmetric legacy values once by assigning them only to edges that
+    /// face another display in the macOS arrangement.
+    private func initializePerEdgeBezelsIfNeeded() {
+        let displays = manager.connectedScreens
+        let tolerance: CGFloat = 1
+
+        func overlaps(_ a: ClosedRange<CGFloat>, _ b: ClosedRange<CGFloat>) -> Bool {
+            min(a.upperBound, b.upperBound) - max(a.lowerBound, b.lowerBound) > tolerance
+        }
+
+        for display in displays where !settings.hasPerEdgeBezel(for: display.displayID) {
+            let original = settings.bezel(for: display.displayID)
+            let frame = display.screen.frame
+            var edges = Bezel.zero
+            for neighbour in displays where neighbour.displayID != display.displayID {
+                let other = neighbour.screen.frame
+                if overlaps(frame.minY...frame.maxY, other.minY...other.maxY) {
+                    if abs(other.maxX - frame.minX) <= tolerance { edges.left = original.horizontal }
+                    if abs(other.minX - frame.maxX) <= tolerance { edges.right = original.horizontal }
+                }
+                if overlaps(frame.minX...frame.maxX, other.minX...other.maxX) {
+                    if abs(other.maxY - frame.minY) <= tolerance { edges.bottom = original.vertical }
+                    if abs(other.minY - frame.maxY) <= tolerance { edges.top = original.vertical }
+                }
+            }
+            settings.setBezel(edges, for: display.displayID)
+        }
+    }
+
+    /// Distinguishes identical monitor models by their position in the arrangement.
+    private func displayLabel(_ display: DisplayInfo) -> String {
+        let displays = manager.connectedScreens
+        guard displays.count > 1 else { return display.name }
+        let minX = displays.map(\.frame.minX).min() ?? display.frame.minX
+        let maxX = displays.map(\.frame.maxX).max() ?? display.frame.maxX
+        let tolerance: CGFloat = 1
+        let position: String
+        if abs(display.frame.minX - minX) <= tolerance { position = "Left" }
+        else if abs(display.frame.maxX - maxX) <= tolerance { position = "Right" }
+        else { position = "Middle" }
+        return "\(display.name) — \(position)"
     }
 
     /// One labelled slider plus numeric field for a single bezel edge.

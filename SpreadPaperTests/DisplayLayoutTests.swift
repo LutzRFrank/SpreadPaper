@@ -60,11 +60,42 @@ struct DisplayLayoutTests {
         Bezel(horizontal: horizontal, vertical: vertical)
     }
 
+    private func bezel(left: CGFloat = 0, right: CGFloat = 0, top: CGFloat = 0, bottom: CGFloat = 0) -> Bezel {
+        Bezel(left: left, right: right, top: top, bottom: bottom)
+    }
+
     @Test func gapBetweenTwoDisplaysIsTheSumOfTheirBezels() {
         let frames = [CGRect(x: 0, y: 0, width: w, height: h), CGRect(x: w, y: 0, width: w, height: h)]
         let spaced = DisplayLayout.spacedFrames(frames, bezels: [bezel(10), bezel(30)])
         #expect(spaced[0].minX == 0)
         #expect(spaced[1].minX == w + 40)
+    }
+
+    @Test func adjacentEdgesAloneDefineHorizontalGap() {
+        let frames = [CGRect(x: 0, y: 0, width: w, height: h), CGRect(x: w, y: 0, width: w, height: h)]
+        let bezels = [
+            bezel(left: 90, right: 14),
+            bezel(left: 14, right: 120),
+        ]
+        let spaced = DisplayLayout.spacedFrames(frames, bezels: bezels)
+        #expect(spaced[0].minX == 0)
+        #expect(spaced[1].minX == w + 28)
+    }
+
+    @Test func middleDisplayContributesItsMatchingEdgeToEachGap() {
+        let frames = [
+            CGRect(x: 0, y: 0, width: w, height: h),
+            CGRect(x: w, y: 0, width: w, height: h),
+            CGRect(x: 2 * w, y: 0, width: w, height: h),
+        ]
+        let bezels = [
+            bezel(right: 5),
+            bezel(left: 7, right: 11),
+            bezel(left: 13),
+        ]
+        let spaced = DisplayLayout.spacedFrames(frames, bezels: bezels)
+        #expect(spaced[1].minX == w + 12)
+        #expect(spaced[2].minX == 2 * w + 12 + 24)
     }
 
     @Test func rowOfThreeAccumulatesEachPairsBezels() {

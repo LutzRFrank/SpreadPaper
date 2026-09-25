@@ -15,7 +15,12 @@ struct DisplayInfo: Identifiable {
 
     /// The panel plus its bezel, in layout points.
     var frameWithBezel: CGRect {
-        frame.insetBy(dx: -bezel.horizontal, dy: -bezel.vertical)
+        CGRect(
+            x: frame.minX - bezel.left,
+            y: frame.minY - bezel.bottom,
+            width: frame.width + bezel.left + bezel.right,
+            height: frame.height + bezel.bottom + bezel.top
+        )
     }
 
     /// How the creation modal and the wizard both name the number of displays.

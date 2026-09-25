@@ -34,7 +34,8 @@ class AppSettings {
     }
 
     /// Per-display frame widths in screen points, keyed by `CGDirectDisplayID` as a string.
-    /// Each entry holds `"horizontal"` and `"vertical"` edge widths.
+    /// New entries hold `left`, `right`, `top` and `bottom`. Legacy symmetric
+    /// `horizontal` and `vertical` values remain readable for migration.
     var bezelWidths: [String: [String: Double]] {
         didSet {
             UserDefaults.standard.set(bezelWidths, forKey: "bezelWidths")
@@ -60,17 +61,29 @@ class AppSettings {
     func bezel(for displayID: CGDirectDisplayID) -> Bezel {
         let entry = bezelWidths[String(displayID)]
         let fallback = bezelGap / 2
+        let legacyHorizontal = entry?["horizontal"] ?? fallback
+        let legacyVertical = entry?["vertical"] ?? fallback
         return Bezel(
-            horizontal: CGFloat(entry?["horizontal"] ?? fallback),
-            vertical: CGFloat(entry?["vertical"] ?? fallback)
+            left: CGFloat(entry?["left"] ?? legacyHorizontal),
+            right: CGFloat(entry?["right"] ?? legacyHorizontal),
+            top: CGFloat(entry?["top"] ?? legacyVertical),
+            bottom: CGFloat(entry?["bottom"] ?? legacyVertical)
         )
+    }
+
+    /// Whether this display has already been saved in the four-edge format.
+    func hasPerEdgeBezel(for displayID: CGDirectDisplayID) -> Bool {
+        guard let entry = bezelWidths[String(displayID)] else { return false }
+        return ["left", "right", "top", "bottom"].allSatisfy { entry[$0] != nil }
     }
 
     /// Stores one display's frame widths, clamped to 0...500 points.
     func setBezel(_ bezel: Bezel, for displayID: CGDirectDisplayID) {
         bezelWidths[String(displayID)] = [
-            "horizontal": Double(max(0, min(bezel.horizontal, 500))),
-            "vertical": Double(max(0, min(bezel.vertical, 500))),
+            "left": Double(max(0, min(bezel.left, 500))),
+            "right": Double(max(0, min(bezel.right, 500))),
+            "top": Double(max(0, min(bezel.top, 500))),
+            "bottom": Double(max(0, min(bezel.bottom, 500))),
         ]
     }
 

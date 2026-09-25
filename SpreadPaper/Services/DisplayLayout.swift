@@ -1,12 +1,36 @@
 import CoreGraphics
 
-/// Frame widths of one display in points: `horizontal` for the left and right edges,
-/// `vertical` for the top and bottom edges.
+/// Physical frame widths of one display in points, stored per edge so exterior
+/// edges do not have to contribute to an interior monitor gap.
 struct Bezel: Equatable, Sendable {
-    var horizontal: CGFloat
-    var vertical: CGFloat
+    var left: CGFloat
+    var right: CGFloat
+    var top: CGFloat
+    var bottom: CGFloat
 
-    static let zero = Bezel(horizontal: 0, vertical: 0)
+    /// Symmetric compatibility used by the uniform controls and older presets.
+    var horizontal: CGFloat {
+        get { (left + right) / 2 }
+        set { left = newValue; right = newValue }
+    }
+
+    var vertical: CGFloat {
+        get { (top + bottom) / 2 }
+        set { top = newValue; bottom = newValue }
+    }
+
+    init(left: CGFloat, right: CGFloat, top: CGFloat, bottom: CGFloat) {
+        self.left = left
+        self.right = right
+        self.top = top
+        self.bottom = bottom
+    }
+
+    init(horizontal: CGFloat, vertical: CGFloat) {
+        self.init(left: horizontal, right: horizontal, top: vertical, bottom: vertical)
+    }
+
+    static let zero = Bezel(left: 0, right: 0, top: 0, bottom: 0)
 }
 
 /// Spreads display frames apart by the physical bezels between monitors. Each display
@@ -32,7 +56,8 @@ enum DisplayLayout {
             for index: Int,
             end: (CGRect) -> CGFloat,
             start: (CGRect) -> CGFloat,
-            width: (Bezel) -> CGFloat
+            beforeWidth: (Bezel) -> CGFloat,
+            afterWidth: (Bezel) -> CGFloat
         ) -> CGFloat {
             let origin = start(frames[index])
             let edges = Set(
@@ -42,18 +67,20 @@ enum DisplayLayout {
             return edges.reduce(0) { total, edge in
                 let before = frames.indices
                     .filter { end(frames[$0]).rounded() == edge }
-                    .map { width(bezels[$0]) }
+                    .map { beforeWidth(bezels[$0]) }
                     .max() ?? 0
                 let afterIndices = frames.indices.filter { abs(start(frames[$0]) - edge) <= tolerance }
-                let after = afterIndices.isEmpty ? width(bezels[index]) : afterIndices.map { width(bezels[$0]) }.max()!
+                let after = afterIndices.isEmpty
+                    ? afterWidth(bezels[index])
+                    : afterIndices.map { afterWidth(bezels[$0]) }.max()!
                 return total + before + after
             }
         }
 
         return frames.indices.map { index in
             frames[index].offsetBy(
-                dx: crossedGaps(for: index, end: \.maxX, start: \.minX, width: \.horizontal),
-                dy: crossedGaps(for: index, end: \.maxY, start: \.minY, width: \.vertical)
+                dx: crossedGaps(for: index, end: \.maxX, start: \.minX, beforeWidth: \.right, afterWidth: \.left),
+                dy: crossedGaps(for: index, end: \.maxY, start: \.minY, beforeWidth: \.top, afterWidth: \.bottom)
             )
         }
     }

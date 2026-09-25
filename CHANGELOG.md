@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.11.2](https://github.com/LutzRFrank/SpreadPaper/compare/v1.11.1...v1.11.2) (2026-09-25)
+
+### Features
+
+* configure left, right, top and bottom bezel widths independently per display
+* identify identical monitors by their left, middle or right position
+
+### Bug Fixes
+
+* count only adjacent monitor edges when compensating for physical frames
+* migrate symmetric bezel settings to the facing edges automatically
+
 ## [1.11.1](https://github.com/LutzRFrank/SpreadPaper/compare/v1.11.0...v1.11.1) (2026-09-25)
 
 ### Bug Fixes
