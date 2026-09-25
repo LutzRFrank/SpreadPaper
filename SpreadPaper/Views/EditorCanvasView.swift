@@ -19,6 +19,7 @@ struct EditorCanvasView: View {
     @State private var dragStartOffset: CGSize = .zero
     @State private var isDragging = false
     @State private var isDropTargeted = false
+    @FocusState private var isCanvasFocused: Bool
 
     var body: some View {
         GeometryReader { geo in
@@ -121,6 +122,27 @@ struct EditorCanvasView: View {
             .animation(.easeInOut(duration: 0.15), value: isDropTargeted)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(Rectangle())
+            .focusable(selectedImage != nil)
+            .focused($isCanvasFocused)
+            .onTapGesture { isCanvasFocused = selectedImage != nil }
+            .onKeyPress(keys: [.leftArrow, .rightArrow, .upArrow, .downArrow]) { press in
+                guard let image = selectedImage else { return .ignored }
+                let distance: CGFloat = press.modifiers.contains(.shift) ? 10 : 1
+                let delta: CGSize
+                switch press.key {
+                case .leftArrow: delta = CGSize(width: -distance, height: 0)
+                case .rightArrow: delta = CGSize(width: distance, height: 0)
+                case .upArrow: delta = CGSize(width: 0, height: -distance)
+                case .downArrow: delta = CGSize(width: 0, height: distance)
+                default: return .ignored
+                }
+                nudgeImage(
+                    byCanvasPoints: delta,
+                    imageSize: image.pixelSize,
+                    previewScale: previewScale
+                )
+                return .handled
+            }
             .dropDestination(for: URL.self) { urls, _ in
                 acceptDrop(urls)
             } isTargeted: { targeted in
@@ -173,16 +195,32 @@ struct EditorCanvasView: View {
         if abs(newY - (h - ch) / 2.0) < threshold { newY = (h - ch) / 2.0 }
         if abs(newY - -(h - ch) / 2.0) < threshold { newY = -(h - ch) / 2.0 }
 
-        // Keep the horizontal offset within one tile. Crossing a side edge then
-        // continues seamlessly from the opposite edge. Vertically, constrain the
-        // image to its real overscan instead of repeating it into a noisy grid.
+        return constrainedOffset(raw: CGSize(width: newX, height: newY), imageWidth: w, imageHeight: h, canvasHeight: ch)
+    }
+
+    /// Moves the focused image by exact canvas points: one per arrow press, or ten
+    /// while Shift is held. Stored offsets are preview points, hence the conversion.
+    private func nudgeImage(byCanvasPoints delta: CGSize, imageSize: NSSize, previewScale: CGFloat) {
+        let w = imageSize.width * previewScale * imageScale
+        let h = imageSize.height * previewScale * imageScale
+        let ch = manager.totalCanvas.height * previewScale
+        let raw = CGSize(
+            width: imageOffset.width + delta.width * previewScale,
+            height: imageOffset.height + delta.height * previewScale
+        )
+        imageOffset = constrainedOffset(raw: raw, imageWidth: w, imageHeight: h, canvasHeight: ch)
+        dragStartOffset = imageOffset
+    }
+
+    /// Wraps horizontal movement and clamps vertical movement to real overscan.
+    private func constrainedOffset(raw: CGSize, imageWidth: CGFloat, imageHeight: CGFloat, canvasHeight: CGFloat) -> CGSize {
         func wrapped(_ value: CGFloat, period: CGFloat) -> CGFloat {
             guard period > 0 else { return 0 }
             return value - (value / period).rounded() * period
         }
 
-        let verticalLimit = max(0, (h - ch) / 2.0)
-        let clampedY = min(max(newY, -verticalLimit), verticalLimit)
-        return CGSize(width: wrapped(newX, period: w), height: clampedY)
+        let verticalLimit = max(0, (imageHeight - canvasHeight) / 2.0)
+        let clampedY = min(max(raw.height, -verticalLimit), verticalLimit)
+        return CGSize(width: wrapped(raw.width, period: imageWidth), height: clampedY)
     }
 }

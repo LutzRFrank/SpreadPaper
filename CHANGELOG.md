@@ -6,6 +6,7 @@
 
 * configure left, right, top and bottom bezel widths independently per display
 * identify identical monitors by their left, middle or right position
+* nudge wallpaper placement with arrow keys, or in 10-point steps with Shift
 
 ### Bug Fixes
 
