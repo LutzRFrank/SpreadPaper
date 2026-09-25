@@ -16,6 +16,19 @@
 
 ---
 
+## macOS 27.2 compatibility fork
+
+This personal fork is built and tested specifically for **macOS 27.2** on Apple Silicon. It is based on the original [spreadpaper/SpreadPaper](https://github.com/spreadpaper/SpreadPaper) project and currently adds:
+
+- **Swift 6 / Xcode 27.2 compatibility** for the monitor-preview shapes by making their pure geometry methods explicitly nonisolated.
+- **Seamless wrap-around positioning** in the editor: an image dragged beyond one edge continues from the opposite edge instead of revealing a black area.
+- **Matching wrap-around rendering** for the final per-display wallpapers, so the saved result matches the editor preview.
+- **Renderer test coverage** for the wrap-around behavior.
+
+The wrap-around mode prevents empty edges but does not blend unrelated left and right image borders. Panoramas whose outer edges already match—or images extended specifically for the complete monitor layout—produce the smoothest result.
+
+---
+
 ## What is SpreadPaper?
 
 SpreadPaper is a native macOS utility that lets you use a single high-resolution image as a wallpaper that seamlessly spans across all your connected monitors. No more dealing with separate wallpapers for each display or awkward cropping – just drag, position, and apply. One image gives you a static wallpaper, two give you a Light & Dark pair, and a set of images becomes a schedule that shifts through the day on every screen at once.
